@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from . import admin_api as v
 
@@ -13,4 +13,5 @@ urlpatterns = [
     path("calendar", v.CalendarView.as_view()),
     path("time-offs", v.TimeOffListView.as_view()),
     path("time-offs/<int:pk>", v.TimeOffDetailView.as_view()),
+    path("settings/", include("apps.stores.settings_urls")),
 ]
