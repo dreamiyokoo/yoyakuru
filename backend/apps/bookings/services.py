@@ -75,9 +75,7 @@ def create_booking(
             raise BookingError("slot_unavailable", "選んだ枠は、ほかの予約で埋まったか、受付できない時間です", 409)
         auto = staff is None
         staff_id = choose_staff(store, slot.staff_ids, day, now) if auto else staff.id
-        uses_resource = service.resource_id is not None and not _joins_existing_group(
-            store, service, staff_id, slot, now
-        )
+        uses_resource = service.resource_id is not None
         booking = Booking.objects.create(
             tenant=store,
             service=service,
@@ -104,16 +102,6 @@ def create_booking(
         )
         _event(booking, "confirmed" if confirm else "held", channel, actor)
     return HoldResult(booking)
-
-
-def _joins_existing_group(store: Tenant, service: Service, staff_id: int, slot, now: datetime) -> bool:
-    if service.capacity <= 1:
-        return False
-    return (
-        Booking.objects.blocking(now)
-        .filter(tenant=store, service=service, staff_id=staff_id, starts_at=slot.starts_at)
-        .exists()
-    )
 
 
 def confirm_by_token(token: str, now: datetime | None = None) -> Booking:

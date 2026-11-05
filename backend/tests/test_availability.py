@@ -142,3 +142,35 @@ def test_choose_staff(service, staff, priorities, expected):
     book(service, staff[0], at(15))
     chosen = choose_staff(service.tenant, [s.id for s in staff], DAY, NOW)
     assert chosen == staff[expected].id
+
+
+def test_party_size_over_capacity_is_rejected_even_on_empty_slot(service, store, staff):
+    assert available_slots(store, service, DAY, now=NOW, party_size=2) == []  # 定員1
+    lesson = Service.objects.create(tenant=store, name="ヨガ", duration_minutes=60, capacity=3)
+    lesson.staff.set([staff[0]])
+    assert available_slots(store, lesson, DAY, now=NOW, party_size=4) == []
+    assert available_slots(store, lesson, DAY, now=NOW, party_size=3)
+
+
+def test_group_keeps_resource_after_first_booking_leaves(store, staff):
+    from apps.stores.models import Resource
+
+    room = Resource.objects.create(tenant=store, name="スタジオ", quantity=1)
+    lesson = Service.objects.create(tenant=store, name="ヨガ", duration_minutes=60, capacity=3, resource=room)
+    lesson.staff.set(staff[:2])
+    first = book(lesson, staff[0], at(10))
+    book(lesson, staff[0], at(10))  # 同じグループに参加
+    first.status = BookingStatus.CANCELLED
+    first.save()
+    slots = {s.starts_at: s.staff_ids for s in available_slots(store, lesson, DAY, now=NOW)}
+    assert slots[at(10)] == (staff[0].id,)  # 残った参加者のグループには入れるが、別の担当者は部屋を使えない
+
+
+def test_resource_usage_counts_only_concurrent_bookings(store, staff, beds):
+    long = Service.objects.create(tenant=store, name="ロング", duration_minutes=120, resource=beds)
+    long.staff.set(staff)
+    short = Service.objects.create(tenant=store, name="ショート", duration_minutes=60, resource=beds)
+    book(short, staff[0], at(10))
+    book(short, staff[1], at(11))
+    slots = {s.starts_at: s.staff_ids for s in available_slots(store, long, DAY, now=NOW)}
+    assert slots[at(10)] == (staff[2].id,)  # ベッドは常に1台空いている

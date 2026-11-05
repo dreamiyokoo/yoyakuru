@@ -116,3 +116,16 @@ def test_expire_holds(service):
     hold(service)
     assert expire_holds(NOW + timedelta(minutes=20)) == 1
     call_command("expire_holds")
+
+
+def test_group_members_each_record_resource(store, staff):
+    from apps.stores.models import Resource, Service
+
+    room = Resource.objects.create(tenant=store, name="スタジオ", quantity=1)
+    lesson = Service.objects.create(tenant=store, name="ヨガ", duration_minutes=60, capacity=3, resource=room)
+    lesson.staff.set(staff[:1])
+    a = hold(lesson, customer_email="a@example.com").booking
+    b = hold(lesson, customer_email="b@example.com").booking
+    assert a.resource_id == b.resource_id == room.id
+    with pytest.raises(BookingError):
+        hold(lesson, customer_email="c@example.com", party_size=2)  # 定員3を超える

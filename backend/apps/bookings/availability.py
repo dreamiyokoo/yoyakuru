@@ -179,14 +179,32 @@ def staff_can_take(
     if overlapping and not _joinable_group(service, plan, overlapping, party_size):
         return False
     if service.resource_id is None or overlapping:
-        return True
-    used = sum(
-        b.resource_quantity
-        for b in bookings
-        if b.resource_id == service.resource_id
-        and overlaps(b.occupied_from, b.occupied_until, plan.occupied_from, plan.occupied_until)
-    )
+        return True  # グループに参加する場合、設備はそのグループがすでに確保している
+    used = peak_resource_usage(bookings, service.resource_id, plan.occupied_from, plan.occupied_until)
     return used + service.resource_quantity <= service.resource.quantity
+
+
+def peak_resource_usage(bookings: Sequence[Booking], resource_id: int, start: datetime, end: datetime) -> int:
+    """指定した時間内で、同時に使われている設備の数の最大値。
+
+    同じ担当者・同じ時間のグループ予約（EXT-01）は1回分として数える。グループの全員が設備を記録して
+    いるので、最初の予約が取消されても、残りの参加者の分は確保されたままになる。
+    """
+    sessions: dict[tuple[int, datetime, datetime], int] = {}
+    for b in bookings:
+        if b.resource_id != resource_id or not overlaps(b.occupied_from, b.occupied_until, start, end):
+            continue
+        key = (b.staff_id, b.occupied_from, b.occupied_until)
+        sessions[key] = max(sessions.get(key, 0), b.resource_quantity)
+    # 区間の始まりと終わりで使用数を増減させ、重なりの最大値を求める
+    events = []
+    for (_, s_from, s_until), qty in sessions.items():
+        events += [(max(s_from, start), qty), (min(s_until, end), -qty)]
+    peak = current = 0
+    for _, delta in sorted(events, key=lambda e: (e[0], e[1])):
+        current += delta
+        peak = max(peak, current)
+    return peak
 
 
 def _blocking_bookings(store: Tenant, day: date, now: datetime, exclude_booking_id: int | None) -> list[Booking]:
@@ -215,6 +233,8 @@ def available_slots(
     today = now.astimezone(tz).date()
     if not store.is_active or not service.is_active or service.tenant_id != store.id:
         return []
+    if party_size > service.capacity:
+        return []  # 定員を超える人数は、空いている枠でも受け付けない
     if enforce_cutoff and (day < today or day > today + timedelta(days=store.booking_window_days)):
         return []
     open_intervals = store_open_intervals(store, day)
