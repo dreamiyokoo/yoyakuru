@@ -52,6 +52,13 @@ test("店舗のサブドメインでは管理画面を開けない", async ({ pa
 test("オーナーは設定を変更でき、スタッフは設定を変更できない", async ({ page }) => {
   await login(page, "owner@fushimi.example");
   await page.getByRole("link", { name: "設定" }).click();
+  // AIで設定：ことばから設定案を作り、1つずつ確認して反映する（E2Eでは外部のAIを呼ばない偽物）
+  await page.getByLabel("店舗の様子").fill("ベッド2台です");
+  await page.getByRole("button", { name: "設定案を作る" }).click();
+  await expect(page.getByText("設備「ベッド」を2に変更")).toBeVisible();
+  await page.getByRole("button", { name: "反映する" }).click();
+  await expect(page.getByText(/設定案の確認が終わりました/)).toBeVisible();
+  await page.getByRole("tab", { name: "予約ルール" }).click();
   await expect(page.getByLabel("店舗名")).toHaveValue(/./);
   await page.getByRole("tab", { name: "設備" }).click();
   const name = `E2E設備${Date.now()}`;

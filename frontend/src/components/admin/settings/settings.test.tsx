@@ -85,6 +85,7 @@ describe("settings", () => {
   it("saves booking rules", async () => {
     const be = backend({ fail: "" });
     renderAs();
+    await openTab("予約ルール");
     const name = await screen.findByLabelText("店舗名");
     await userEvent.clear(name);
     await userEvent.type(name, "伏見整体");
@@ -102,6 +103,7 @@ describe("settings", () => {
   it("shows load errors", async () => {
     mockFetch((url) => (url.endsWith("/auth/me") ? { body: owner } : { status: 500, body: { detail: "失敗しました" } }));
     renderAs();
+    await openTab("予約ルール");
     expect(await screen.findByText("失敗しました")).toBeInTheDocument();
     for (const tab of ["サービス", "担当者", "設備"]) {
       await openTab(tab);
@@ -304,7 +306,7 @@ describe("settings", () => {
     await userEvent.click(await screen.findByRole("button", { name: "営業時間を保存する" }));
     expect(await screen.findByRole("dialog", { name: "変更前の確認" })).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText("店舗"), "kyoto");
-    expect(await screen.findByLabelText("店舗名")).toBeInTheDocument();
+    expect(await screen.findByRole("tab", { name: "AIで設定", selected: true })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "変更前の確認" })).not.toBeInTheDocument();
     expect(be.writes()).toEqual([]);
   });

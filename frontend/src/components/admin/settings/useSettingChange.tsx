@@ -87,7 +87,10 @@ export function useSettingChange(sub: string) {
     </>
   );
 
-  return { change, busy, ui };
+  /** 確認待ちの変更を捨てる（保存しない）。 */
+  const cancel = () => setPending(null);
+
+  return { change, busy, ui, pending: pending !== null, cancel };
 }
 
 export const TIMES = Array.from({ length: 36 }, (_, i) => `${String(6 + Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);
