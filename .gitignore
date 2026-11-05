@@ -32,3 +32,9 @@ cloudflared/*.json
 
 # 検証用の生成音声
 experiments/*/audio/
+
+# テストの生成物
+.coverage
+coverage/
+playwright-report/
+test-results/

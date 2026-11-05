@@ -1,0 +1,21 @@
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "DJ"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+addopts = "-q"
+
+[tool.coverage.run]
+branch = true
+source = ["apps"]
+omit = ["*/migrations/*", "apps/core/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
