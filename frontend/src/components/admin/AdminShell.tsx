@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAdmin } from "./AdminContext";
+import { TwoFactorSetup } from "./TwoFactorSetup";
 
 const TABS = [
   { href: "/bookings", label: "予約" },
@@ -14,7 +15,7 @@ const TABS = [
 
 /** 管理画面の枠（ヘッダーと下部のタブ）。店舗に所属していなければ案内だけを出す。 */
 export function AdminShell({ title, action, children }: { title: string; action?: ReactNode; children: (sub: string) => ReactNode }) {
-  const { me, membership, setTenant, signOut } = useAdmin();
+  const { me, membership, setTenant, signOut, signedIn } = useAdmin();
   const pathname = usePathname();
   if (!me) return null;
   return (
@@ -41,7 +42,13 @@ export function AdminShell({ title, action, children }: { title: string; action?
         </button>
       </header>
       <main className="flex flex-1 flex-col gap-3 px-4 py-4">
-        {membership ? children(membership.subdomain) : <p className="text-sm">所属している店舗がありません。店舗のオーナーに招待を依頼してください。</p>}
+        {me.two_factor_required && !me.two_factor_enabled ? (
+          <TwoFactorSetup onDone={signedIn} />
+        ) : membership ? (
+          children(membership.subdomain)
+        ) : (
+          <p className="text-sm">所属している店舗がありません。店舗のオーナーに招待を依頼してください。</p>
+        )}
       </main>
       <nav aria-label="管理メニュー" className="sticky bottom-0 flex justify-around border-t border-line bg-card pb-5 pt-2">
         {TABS.map((t) => {

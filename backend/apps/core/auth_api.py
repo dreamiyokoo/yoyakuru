@@ -1,8 +1,11 @@
 """店舗利用者（オーナー・スタッフ）のログイン（LOGIN-07）。
 
 セッション認証。CookieはDjangoが発行したホスト（app.）限定で、親ドメインには出さない（TENANT-03）。
-二段階認証（オーナー必須）は後続で追加する。
+二段階認証を有効にした利用者は、パスワードの後に認証アプリのコード（または回復コード）を求める。
+オーナーは二段階認証が必須で、設定が済むまで店舗の管理APIを使えない。
 """
+
+import time
 
 from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.utils.decorators import method_decorator
@@ -15,6 +18,11 @@ from rest_framework.views import APIView
 
 from apps.stores.models import Membership
 
+from . import two_factor
+
+PENDING_KEY = "two_factor_pending"
+PENDING_SECONDS = 300
+
 
 def me_payload(user) -> dict:
     memberships = (
@@ -23,6 +31,8 @@ def me_payload(user) -> dict:
         .order_by("tenant__name")
     )
     return {
+        "two_factor_enabled": two_factor.enabled_for(user),
+        "two_factor_required": two_factor.required_for(user),
         "email": user.email,
         "name": user.get_full_name() or user.get_username(),
         "memberships": [
@@ -61,8 +71,69 @@ class LoginView(APIView):
         user = authenticate(request, username=account.get_username(), password=password) if account else None
         if user is None:
             return Response({"code": "invalid_login", "message": "メールアドレスかパスワードが違います"}, status=400)
+        if two_factor.enabled_for(user):
+            # パスワードは合っている。まだログインさせず、認証アプリのコードを待つ
+            request.session[PENDING_KEY] = {"user": user.pk, "at": int(time.time())}
+            return Response({"two_factor_required": True})
         login(request, user)
         return Response(me_payload(user))
+
+
+class CodeSerializer(serializers.Serializer):
+    code = serializers.CharField(max_length=20)
+
+
+class LoginCodeView(APIView):
+    """ログインの2段目。認証アプリの6桁のコードか、回復コードを受け付ける。"""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
+
+    @method_decorator(csrf_protect)
+    def post(self, request):
+        data = CodeSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        pending = request.session.get(PENDING_KEY) or {}
+        expired = int(time.time()) - pending.get("at", 0) > PENDING_SECONDS
+        user = get_user_model().objects.filter(pk=pending.get("user"), is_active=True).first()
+        if user is None or expired:
+            request.session.pop(PENDING_KEY, None)
+            return Response({"code": "expired", "message": "最初からログインしてください"}, status=400)
+        if not two_factor.verify(user, data.validated_data["code"]):
+            return Response({"code": "invalid_code", "message": "コードが違います"}, status=400)
+        request.session.pop(PENDING_KEY, None)
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        return Response(me_payload(user))
+
+
+class TwoFactorSetupView(APIView):
+    """認証アプリに登録するためのQRコードと鍵を作る。確認（confirm）が済むまで有効にならない。"""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if two_factor.enabled_for(request.user):
+            return Response({"code": "already_enabled", "message": "二段階認証は設定済みです"}, status=400)
+        tf, uri, svg = two_factor.start_setup(request.user)
+        return Response({"secret": tf.secret, "uri": uri, "qr_svg": svg})
+
+
+class TwoFactorConfirmView(APIView):
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
+
+    def post(self, request):
+        data = CodeSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        codes = two_factor.confirm(request.user, data.validated_data["code"])
+        if codes is None:
+            return Response(
+                {"code": "invalid_code", "message": "コードが違います。認証アプリの最新のコードを入力してください"},
+                status=400,
+            )
+        return Response({"recovery_codes": codes, **me_payload(request.user)})
 
 
 class LogoutView(APIView):

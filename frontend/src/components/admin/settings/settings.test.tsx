@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/settings",
 }));
 
-const owner: Me = { email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10 }] };
+const owner: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10 }] };
 const staffMe: Me = { ...owner, memberships: [{ ...owner.memberships[0], role: "staff", staff_id: 11 }] };
 
 const affected: AdminBooking = {

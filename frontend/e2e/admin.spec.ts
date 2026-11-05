@@ -1,13 +1,41 @@
 import { expect, test, type Page } from "@playwright/test";
+import crypto from "node:crypto";
 
 const APP = "http://app.localhost:3000";
 const PASSWORD = "e2e-demo-pass";
+
+const TOTP_SECRET = "JBSWY3DPEHPK3PXP"; // playwright.config.ts の DEMO_TOTP_SECRET と同じ
+
+/** 認証アプリと同じ6桁のコード（RFC 6238）。 */
+function totp(secret: string, at = Date.now()): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const bits = [...secret].map((c) => alphabet.indexOf(c).toString(2).padStart(5, "0")).join("");
+  const key = Buffer.from(bits.match(/.{8}/g)!.map((b) => parseInt(b, 2)));
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(at / 30000)));
+  const h = crypto.createHmac("sha1", key).update(counter).digest();
+  const o = h[h.length - 1] & 0xf;
+  return String((h.readUInt32BE(o) & 0x7fffffff) % 1_000_000).padStart(6, "0");
+}
+
+let lastStep = 0;
 
 async function login(page: Page, email: string) {
   await page.goto(`${APP}/login`);
   await page.getByLabel("メールアドレス").fill(email);
   await page.getByLabel("パスワード").fill(PASSWORD);
   await page.getByRole("button", { name: "ログイン" }).click();
+  if (email.startsWith("owner")) {
+    // 同じコードは使い回せないので、前回と違う30秒の区切りのコードを使う
+    let now = Date.now();
+    while (Math.floor(now / 30000) <= lastStep) {
+      await page.waitForTimeout(1000);
+      now = Date.now();
+    }
+    lastStep = Math.floor(now / 30000);
+    await page.getByLabel("確認コード").fill(totp(TOTP_SECRET, now));
+    await page.getByRole("button", { name: "確認する" }).click();
+  }
   await expect(page.getByRole("heading", { name: "予約", exact: true })).toBeVisible();
 }
 
