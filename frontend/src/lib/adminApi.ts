@@ -9,12 +9,12 @@ function cookie(name: string): string {
 }
 
 /** 更新系のリクエストには、DjangoのCSRFトークンを付ける。Cookieがなければ先に発行してもらう。 */
-async function mutate<T>(path: string, method: string, body?: unknown): Promise<T> {
+async function mutate<T>(path: string, method: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
   if (!cookie("csrftoken")) await request(`${AUTH}/csrf`);
   return request<T>(path, {
     method,
     body: body === undefined ? undefined : JSON.stringify(body),
-    headers: { "X-CSRFToken": cookie("csrftoken") },
+    headers: { "X-CSRFToken": cookie("csrftoken"), ...headers },
   });
 }
 
@@ -56,6 +56,6 @@ export const adminApi = {
       { message, history },
     ),
   /** 設定の変更。dryRun なら保存せず、影響を受ける予約だけを返す。 */
-  changeSetting: <T>(sub: string, path: string, method: string, body: unknown, dryRun: boolean) =>
-    mutate<Applied<T>>(`${base(sub)}/settings/${path}${dryRun ? "?dry_run=1" : ""}`, method, body),
+  changeSetting: <T>(sub: string, path: string, method: string, body: unknown, dryRun: boolean, source?: "ai") =>
+    mutate<Applied<T>>(`${base(sub)}/settings/${path}${dryRun ? "?dry_run=1" : ""}`, method, body, source ? { "X-Setting-Source": source } : {}),
 };

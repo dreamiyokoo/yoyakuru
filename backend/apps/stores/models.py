@@ -199,3 +199,18 @@ class Holiday(models.Model):
 
     def __str__(self) -> str:
         return f"{self.date} {self.name}"
+
+
+class SettingChange(TenantOwnedModel):
+    """設定の変更履歴（SETUP-07）。変更の直前の設定をまるごと残し、直前の状態に戻せるようにする。"""
+
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    source = models.CharField("経路", max_length=10, help_text="manual：画面、ai：AIで設定、undo：取り消し")
+    method = models.CharField(max_length=10)
+    path = models.CharField(max_length=100)
+    snapshot = models.JSONField("変更前の設定")
+    created_at = models.DateTimeField(auto_now_add=True)
+    reverted_at = models.DateTimeField("取り消した日時", null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]

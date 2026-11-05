@@ -22,7 +22,17 @@ from apps.bookings.availability import available_slots, peak_resource_usage, sto
 from apps.bookings.models import Booking
 from apps.tenants.models import Tenant
 
-from .models import BusinessHours, DateOverride, RecurringBreak, Resource, Service, ShiftException, Staff, WeeklyShift
+from .models import (
+    BusinessHours,
+    DateOverride,
+    RecurringBreak,
+    Resource,
+    Service,
+    SettingChange,
+    ShiftException,
+    Staff,
+    WeeklyShift,
+)
 
 
 def affected_bookings(tenant: Tenant, now) -> list[Booking]:
@@ -63,14 +73,24 @@ class SettingsView(TenantAdminView):
         if not self.is_owner:
             raise PermissionDenied("設定の変更はオーナーのみ行えます")
 
-    def apply(self, request, change, status_code=status.HTTP_200_OK):
-        """変更を適用し、新たに影響を受ける予約を返す。dry_run=1 なら保存しない。"""
+    def apply(self, request, change, status_code=status.HTTP_200_OK, record=True):
+        """変更を適用し、新たに影響を受ける予約を返す。dry_run=1 なら保存しない。
+
+        保存するときは、変更の直前の設定を履歴に残す（SETUP-07）。経路はAIで設定なら ai、画面なら manual。
+        """
+        from . import history
+
         dry_run = request.query_params.get("dry_run") == "1"
         now = timezone.now()
         with transaction.atomic():
             Tenant.objects.select_for_update().get(pk=self.tenant.pk)
             before = {b.id for b in affected_bookings(self.tenant, now)}
+            snap = history.snapshot(self.tenant) if record and not dry_run else None
             result = change()
+            if snap is not None:
+                source = "ai" if request.headers.get("X-Setting-Source") == "ai" else "manual"
+                path = request.path.split("/settings/", 1)[1]
+                history.record(self.tenant, request.user, source, request.method, path, snap)
             self.tenant.refresh_from_db()
             affected = [b for b in affected_bookings(self.tenant, now) if b.id not in before]
             if dry_run:
@@ -557,3 +577,47 @@ class SetupTemplateView(SettingsView):
             raise Http404
         steps, notes = setup_ai.steps_for(self.tenant, template["plan"])
         return Response({"label": template["label"], "steps": steps, "notes": notes})
+
+
+# ---- 変更履歴と取り消し（SETUP-07）
+
+
+class HistoryView(SettingsView):
+    def get(self, request, subdomain):
+        from . import history
+
+        changes = SettingChange.objects.for_tenant(self.tenant).select_related("actor")[:30]
+        return Response(
+            [
+                {
+                    "id": c.id,
+                    "label": history.describe(c.method, c.path),
+                    "source": c.source,
+                    "actor_name": (c.actor.get_full_name() or c.actor.email) if c.actor else "",
+                    "created_at": c.created_at,
+                    "reverted": c.reverted_at is not None,
+                }
+                for c in changes
+            ]
+        )
+
+
+class UndoView(SettingsView):
+    """直前の変更（取り消していない最新の変更）を取り消し、その変更の前の状態に戻す。"""
+
+    def post(self, request, subdomain):
+        from . import history
+
+        target = SettingChange.objects.for_tenant(self.tenant).exclude(source="undo").filter(reverted_at=None).first()
+        if target is None:
+            raise serializers.ValidationError("取り消せる変更はありません")
+
+        def change():
+            snap = history.snapshot(self.tenant)
+            history.restore(self.tenant, target.snapshot)
+            target.reverted_at = timezone.now()
+            target.save(update_fields=["reverted_at"])
+            history.record(self.tenant, request.user, "undo", "POST", "history/undo", snap)
+            return {"reverted": target.id, "label": history.describe(target.method, target.path)}
+
+        return self.apply(request, change, record=False)

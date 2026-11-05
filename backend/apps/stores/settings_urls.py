@@ -6,6 +6,8 @@ from . import settings_api as v
 urlpatterns = [
     path("store", v.StoreSettingsView.as_view()),
     path("assistant", v.SetupAssistantView.as_view()),
+    path("history", v.HistoryView.as_view()),
+    path("history/undo", v.UndoView.as_view()),
     path("templates", v.SetupTemplateView.as_view()),
     path("templates/<slug:key>", v.SetupTemplateView.as_view()),
     path("hours", v.BusinessHoursView.as_view()),
