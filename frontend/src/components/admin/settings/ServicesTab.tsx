@@ -16,8 +16,9 @@ export interface ServiceSetting {
   price: number | null;
   duration_minutes: number;
   first_visit_duration_minutes: number | null;
-  buffer_before_minutes: number;
-  buffer_after_minutes: number;
+  /** null は店舗の既定値を使う */
+  buffer_before_minutes: number | null;
+  buffer_after_minutes: number | null;
   staff: number[];
   resource: number | null;
   resource_quantity: number;
@@ -33,8 +34,8 @@ const BLANK: ServiceSetting = {
   price: null,
   duration_minutes: 60,
   first_visit_duration_minutes: null,
-  buffer_before_minutes: 0,
-  buffer_after_minutes: 0,
+  buffer_before_minutes: null,
+  buffer_after_minutes: null,
   staff: [],
   resource: null,
   resource_quantity: 1,
@@ -140,8 +141,8 @@ function ServiceForm({
       <NumberSelect label="所要時間" value={v.duration_minutes} options={DURATIONS} onChange={(x) => set("duration_minutes", x ?? 60)} />
       <NumberSelect label="初回の所要時間" value={v.first_visit_duration_minutes} options={DURATIONS} none="通常と同じ" onChange={(x) => set("first_visit_duration_minutes", x)} />
       <div className="flex gap-2">
-        <NumberSelect label="前の準備" value={v.buffer_before_minutes} options={BUFFERS} onChange={(x) => set("buffer_before_minutes", x ?? 0)} />
-        <NumberSelect label="後の片付け" value={v.buffer_after_minutes} options={BUFFERS} onChange={(x) => set("buffer_after_minutes", x ?? 0)} />
+        <NumberSelect label="前の準備" value={v.buffer_before_minutes} options={BUFFERS} none="店舗の既定値" onChange={(x) => set("buffer_before_minutes", x)} />
+        <NumberSelect label="後の片付け" value={v.buffer_after_minutes} options={BUFFERS} none="店舗の既定値" onChange={(x) => set("buffer_after_minutes", x)} />
       </div>
       <fieldset className="flex flex-col gap-1">
         <legend className="text-sm font-bold">担当できる人</legend>

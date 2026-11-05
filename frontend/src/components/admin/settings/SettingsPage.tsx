@@ -22,12 +22,13 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
 
-/** 10 設定。項目をタブで切り替え、1画面に収める（スクロールを少なく）。オーナーのみ。 */
+/** 10 設定。項目をタブで切り替え、1画面に収める（スクロールを少なく）。オーナーのみ。
+ * 店舗を切り替えたら、編集中の内容や確認中の変更を捨てる（key で作り直す）。 */
 export function SettingsPage({ today = toDateKey(new Date()) }: { today?: string }) {
   const { membership } = useAdmin();
   return (
     <AdminShell title="設定">
-      {(sub) => (membership?.role === "owner" ? <Body sub={sub} today={today} /> : <Notice>設定はオーナーのみ変更できます。</Notice>)}
+      {(sub) => (membership?.role === "owner" ? <Body key={sub} sub={sub} today={today} /> : <Notice>設定はオーナーのみ変更できます。</Notice>)}
     </AdminShell>
   );
 }

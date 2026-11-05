@@ -20,11 +20,10 @@ const affected: AdminBooking = {
   customer_email: "", customer_phone: "", note: "", channel: "web", auto_assigned: false, party_size: 1, created_at: "2026-11-05T10:00:00+09:00",
 };
 
-const P = "/api/v1/admin/tenants/fushimi/settings/";
 type Call = { path: string; method: string; dry: boolean; body: unknown };
 
 /** 設定APIの簡易な偽物。dry_run で影響を返すパスを指定できる。 */
-function backend({ affects = [] as string[], fail = "" } = {}) {
+function backend({ affects = [] as string[], fail = "", me = owner } = {}) {
   const writes: Call[] = [];
   const db = {
     store: { name: "伏見整体院", phone: "075", address: "", slot_interval_minutes: 30, booking_window_days: 60, same_day_cutoff_minutes: 60, cancel_deadline_days: 1, default_buffer_minutes: 0 },
@@ -40,12 +39,12 @@ function backend({ affects = [] as string[], fail = "" } = {}) {
     "staff/10/shifts": { weekly: [{ weekday: 0, starts_at: "10:00:00", ends_at: "19:00:00" }], exceptions: [{ id: 9, date: "2026-11-20", is_off: true, starts_at: null, ends_at: null }, { id: 8, date: "2026-11-21", is_off: false, starts_at: "10:00:00", ends_at: "15:00:00" }, { id: 6, date: "2026-01-01", is_off: true, starts_at: null, ends_at: null }] },
   } as Record<string, unknown>;
   const calls = mockFetch((url, init) => {
-    if (url.endsWith("/auth/me")) return { body: owner };
+    if (url.endsWith("/auth/me")) return { body: me };
     if (url.endsWith("/auth/csrf")) {
       document.cookie = "csrftoken=t";
       return { body: {} };
     }
-    const [path, query] = url.slice(P.length).split("?dry_run=");
+    const [path, query] = url.replace(/^.*\/settings\//, "").split("?dry_run=");
     const method = init?.method ?? "GET";
     if (method === "GET") return path in db ? { body: db[path] } : { status: 404, body: { detail: "ありません" } };
     if (path === fail) return { status: 400, body: { detail: "入力を確認してください" } };
@@ -214,7 +213,7 @@ describe("settings", () => {
     await userEvent.type(screen.getByLabelText("定員（1回あたりの人数）"), "3");
     await userEvent.click(screen.getByRole("button", { name: "保存する" }));
     await waitFor(() => expect(be.writes()).toHaveLength(2));
-    expect(be.writes()[1]).toMatchObject({ path: "services", method: "POST", body: { name: "カット", price: 4000, resource: 5, capacity: 3, staff: [10] } });
+    expect(be.writes()[1]).toMatchObject({ path: "services", method: "POST", body: { name: "カット", price: 4000, resource: 5, capacity: 3, staff: [10], buffer_before_minutes: null, buffer_after_minutes: null } });
   });
 
   it("orders, pauses and adds staff", async () => {
@@ -295,5 +294,18 @@ describe("settings", () => {
     renderAs();
     await openTab("設備");
     expect(await screen.findByText(/設備はまだありません/)).toBeInTheDocument();
+  });
+
+  it("drops a pending change when the owner switches stores", async () => {
+    const two: Me = { ...owner, memberships: [...owner.memberships, { subdomain: "kyoto", name: "京都店", role: "owner", staff_id: 20 }] };
+    const be = backend({ affects: ["hours"], me: two });
+    renderAs();
+    await openTab("営業時間");
+    await userEvent.click(await screen.findByRole("button", { name: "営業時間を保存する" }));
+    expect(await screen.findByRole("dialog", { name: "変更前の確認" })).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("店舗"), "kyoto");
+    expect(await screen.findByLabelText("店舗名")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "変更前の確認" })).not.toBeInTheDocument();
+    expect(be.writes()).toEqual([]);
   });
 });

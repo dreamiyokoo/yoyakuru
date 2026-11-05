@@ -99,11 +99,13 @@ def test_resources_and_services(service, staff, beds, owner):
     assert len(c.get(f"{S}/resources").json()) == 2
 
     body = {"name": "カウンセリング", "duration_minutes": 30, "staff": [staff[0].id], "resource": room}
+    body |= {"buffer_before_minutes": None, "buffer_after_minutes": None}  # 店舗の既定値を使う
     r = c.post(f"{S}/services", body, format="json")
     assert (
         r.status_code == 201 and r.json()["result"]["staff"] == [staff[0].id] and r.json()["result"]["resource"] == room
     )
     sid = r.json()["result"]["id"]
+    assert Service.objects.get(pk=sid).buffer_before_minutes is None
     r = c.patch(f"{S}/services/{sid}", {"staff": [staff[0].id, staff[1].id], "resource": None}, format="json")
     assert r.json()["result"]["staff"] == [staff[0].id, staff[1].id] and r.json()["result"]["resource"] is None
     assert len(c.get(f"{S}/services").json()) == 2
@@ -178,3 +180,17 @@ def test_shifts_and_exceptions(service, staff, owner):
     assert len(c.get(f"{S}/staff/{a.id}/shifts").json()["exceptions"]) == 1
     assert c.delete(f"{S}/staff/{a.id}/exceptions/{r.json()['result']['id']}").status_code == 200
     assert c.delete(f"{S}/staff/{staff[1].id}/exceptions/{r.json()['result']['id']}").status_code == 404
+
+
+def test_reducing_resources_reports_existing_groups(store, staff, beds, owner):
+    """グループに参加する空き判定は設備を数えないが、設備を減らしたときは既存のグループ全体で確かめる。"""
+    lesson = Service.objects.create(
+        tenant=store, name="ヨガ", duration_minutes=60, capacity=4, resource=beds, resource_quantity=1
+    )
+    lesson.staff.set(staff)
+    ids = {book(lesson, s, far(10), email=f"{s.id}-{i}@example.com").id for s in staff[:2] for i in range(2)}
+    c = client_for(owner)
+    r = c.patch(f"{S}/resources/{beds.id}?dry_run=1", {"quantity": 1}, format="json")
+    assert {x["id"] for x in r.json()["affected_bookings"]} == ids
+    r = c.patch(f"{S}/resources/{beds.id}?dry_run=1", {"quantity": 2}, format="json")
+    assert r.json()["affected_bookings"] == []

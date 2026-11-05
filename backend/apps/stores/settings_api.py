@@ -16,7 +16,7 @@ from rest_framework.response import Response
 
 from apps.bookings.admin_api import TenantAdminView
 from apps.bookings.admin_serializers import AdminBookingSerializer
-from apps.bookings.availability import available_slots, store_tz
+from apps.bookings.availability import available_slots, peak_resource_usage, store_tz
 from apps.bookings.models import Booking
 from apps.tenants.models import Tenant
 
@@ -26,10 +26,13 @@ from .models import BusinessHours, DateOverride, RecurringBreak, Resource, Servi
 def affected_bookings(tenant: Tenant, now) -> list[Booking]:
     """今後の予約のうち、今の設定では受け付けられないもの。"""
     out = []
-    upcoming = (
-        Booking.objects.blocking(now).filter(tenant=tenant, starts_at__gte=now).select_related("service", "staff")
+    active = list(
+        Booking.objects.blocking(now).filter(tenant=tenant, occupied_until__gt=now).select_related("service", "staff")
     )
-    for b in upcoming:
+    quantities = dict(Resource.objects.for_tenant(tenant).values_list("id", "quantity"))
+    for b in active:
+        if b.starts_at < now:
+            continue
         day = b.starts_at.astimezone(store_tz(tenant)).date()
         slots = available_slots(
             tenant,
@@ -42,7 +45,12 @@ def affected_bookings(tenant: Tenant, now) -> list[Booking]:
             exclude_booking_id=b.id,
             enforce_cutoff=False,
         )
-        if not any(s.starts_at == b.starts_at for s in slots):
+        fits = any(s.starts_at == b.starts_at for s in slots)
+        # 空き判定はグループへの参加なら設備を数えないため、設備の数は既存の予約全体で直接確かめる
+        if fits and b.resource_id:
+            used = peak_resource_usage(active, b.resource_id, b.occupied_from, b.occupied_until)
+            fits = used <= quantities.get(b.resource_id, 0)
+        if not fits:
             out.append(b)
     return out
 
