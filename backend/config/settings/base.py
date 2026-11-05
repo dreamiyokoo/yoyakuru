@@ -16,11 +16,7 @@ ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split() or [
     "127.0.0.1",
 ]
 
-# django-tenants: SHARED_APPS は public スキーマに配置される
-SHARED_APPS = [
-    "django_tenants",
-    "apps.tenants",
-    "apps.core",
+INSTALLED_APPS = [
     # unfold は django.contrib.admin より前に必須
     "unfold",
     "django.contrib.contenttypes",
@@ -29,23 +25,12 @@ SHARED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.admin",
+    "rest_framework",
+    "apps.core",
+    "apps.tenants",
 ]
-
-# django-tenants: TENANT_APPS はテナントスキーマごとに配置される
-# （空だと起動できないため contenttypes を置く。予約機能のアプリはここに追加する）
-TENANT_APPS = [
-    "django.contrib.contenttypes",
-]
-
-INSTALLED_APPS = list(SHARED_APPS) + [
-    app for app in TENANT_APPS if app not in SHARED_APPS
-]
-
-TENANT_MODEL = "tenants.Tenant"
-TENANT_DOMAIN_MODEL = "tenants.Domain"
 
 MIDDLEWARE = [
-    "django_tenants.middleware.main.TenantMainMiddleware",  # 先頭に必須
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -55,10 +40,9 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# public スキーマ（admin.<BASE_DOMAIN>）用 URL
-PUBLIC_SCHEMA_URLCONF = "config.urls_public"
-# テナントスキーマ（*.<BASE_DOMAIN>）用 URL
-ROOT_URLCONF = "config.urls_tenant"
+# Django は api.<BASE_DOMAIN>（API）と admin.<BASE_DOMAIN>（運営者用の管理画面）で動く。
+# 店舗の判定はホスト名ではなく、公開APIはURLの店舗名、管理APIはログインユーザーの所属で行う。
+ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
@@ -77,10 +61,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Database — django-tenants PostgreSQL バックエンド
+# Database — 全店舗で1つのスキーマを使い、各データに店舗IDを持たせる（SCALE-02）
 DATABASES = {
     "default": {
-        "ENGINE": "django_tenants.postgresql_backend",
+        "ENGINE": "django.db.backends.postgresql",
         "HOST": os.environ.get("DB_HOST", "localhost"),
         "PORT": os.environ.get("DB_PORT", "5432"),
         "NAME": os.environ.get("DB_NAME", "yoyakuru_dev"),
@@ -89,7 +73,18 @@ DATABASES = {
     }
 }
 
-DATABASE_ROUTERS = ["django_tenants.routers.TenantSyncRouter"]
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+# セッションCookieは発行したホスト限定とし、親ドメインには発行しない（TENANT-03）
+SESSION_COOKIE_DOMAIN = None
+CSRF_COOKIE_DOMAIN = None
 
 UNFOLD = {
     "SITE_TITLE": "ヨヤクル 管理画面",

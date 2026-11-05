@@ -2,9 +2,9 @@ import re
 
 from django.core.exceptions import ValidationError
 from django.db import models
-from django_tenants.models import DomainMixin, TenantMixin
 
-RESERVED_SUBDOMAINS = {"www", "api", "admin", "mail", "static", "media"}
+# TENANT-04: 共通ドメインや運用で使うため、店舗名に使えないサブドメイン
+RESERVED_SUBDOMAINS = {"www", "app", "api", "mcp", "admin", "mail", "static", "media"}
 
 
 def validate_subdomain(value: str) -> None:
@@ -16,25 +16,34 @@ def validate_subdomain(value: str) -> None:
         raise ValidationError(f"'{value}' は予約済みサブドメインのため使用できません")
 
 
-class Tenant(TenantMixin):
+class Tenant(models.Model):
     name = models.CharField(max_length=100)
     subdomain = models.SlugField(unique=True, validators=[validate_subdomain])
-    admin_email = models.EmailField()
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    # TenantMixin が自動でスキーマを作成する
-    auto_create_schema = True
-
     class Meta:
-        verbose_name = "テナント"
-        verbose_name_plural = "テナント一覧"
+        verbose_name = "店舗"
+        verbose_name_plural = "店舗一覧"
 
     def __str__(self) -> str:
         return f"{self.name} ({self.subdomain})"
 
 
-class Domain(DomainMixin):
+class TenantOwnedQuerySet(models.QuerySet):
+    def for_tenant(self, tenant: Tenant) -> "TenantOwnedQuerySet":
+        return self.filter(tenant=tenant)
+
+
+class TenantOwnedModel(models.Model):
+    """店舗に属するデータの基底クラス。店舗ごとのデータは必ずこれを継承する（AC-09）。
+
+    店舗をまたいだ取得を防ぐため、ビュー等では `Model.objects.for_tenant(tenant)` で絞り込む。
+    """
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="+")
+
+    objects = TenantOwnedQuerySet.as_manager()
+
     class Meta:
-        verbose_name = "ドメイン"
-        verbose_name_plural = "ドメイン一覧"
+        abstract = True

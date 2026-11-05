@@ -1,10 +1,15 @@
 tunnel: 40d9d9de-1aeb-4476-b0c4-956044002aa0
 credentials-file: /etc/cloudflared/40d9d9de-1aeb-4476-b0c4-956044002aa0.json
+# 注意: このトンネルはリモート管理（Cloudflare ダッシュボードの Networks > Tunnels > Public Hostnames）。
+# cloudflared はダッシュボード側の設定を優先し、下の ingress は使われない。変更はダッシュボードで行い、ここは記録として揃える。
 ingress:
-  # プラットフォーム管理 admin（Django 直接）
+  # 運営者用の Django 管理画面と API（Django 直接）
   - hostname: "admin.dreami.blog"
     service: http://backend:8000
+  - hostname: "api.dreami.blog"
+    service: http://backend:8000
 
+  # app.（店舗スタッフ用の管理画面）と店舗の公開予約ページ（Next.js）
   # ワイルドカードは具体的なホスト名より後に配置する必要がある
   - hostname: "*.dreami.blog"
     service: http://frontend:3000
