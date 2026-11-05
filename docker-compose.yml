@@ -1,3 +1,20 @@
+# backend と worker で共通の環境変数
+x-backend-env: &backend-env
+  DJANGO_SETTINGS_MODULE: config.settings.development
+  DB_HOST: db
+  DB_PORT: "5432"
+  DB_USER: ${DB_USER:-yoyakuru}
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+  DB_NAME: ${DB_NAME:-yoyakuru_dev}
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+  DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-}
+  TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-dreami.blog}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  REDIS_URL: redis://redis:6379/0
+  EMAIL_HOST: mailpit
+  EMAIL_PORT: "1025"
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@dreami.blog}
+
 services:
   db:
     image: postgres:16
@@ -24,19 +41,14 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
       - ${HOST_WORKSPACE:-.}/backend:/app
-    environment:
-      DJANGO_SETTINGS_MODULE: config.settings.development
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_USER: ${DB_USER:-yoyakuru}
-      DB_PASSWORD: ${DB_PASSWORD:?}
-      DB_NAME: ${DB_NAME:-yoyakuru_dev}
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
-      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-}
-      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-dreami.blog}
+    environment: *backend-env
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     healthcheck:
       test:
         [
@@ -49,6 +61,35 @@ services:
       timeout: 5s
       retries: 15
       start_period: 60s
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    command: celery -A config worker -l info
+    volumes:
+      - ${HOST_WORKSPACE:-.}/backend:/app
+    environment: *backend-env
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 開発用のメール受信。送ったメールは http://localhost:8025 で確認する（外部には届かない）
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
 
   frontend:
     build:

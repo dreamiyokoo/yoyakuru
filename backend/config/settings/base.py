@@ -20,6 +20,7 @@ ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split() or [
 SHARED_APPS = [
     "django_tenants",
     "apps.tenants",
+    "apps.core",
     # unfold は django.contrib.admin より前に必須
     "unfold",
     "django.contrib.contenttypes",
@@ -94,6 +95,14 @@ UNFOLD = {
     "SITE_TITLE": "ヨヤクル 管理画面",
     "SITE_HEADER": "ヨヤクル",
 }
+
+# Celery（仮押さえの期限切れ・メール送信などのジョブ）
+CELERY_BROKER_URL = os.environ["REDIS_URL"]
+
+# メール（開発では Mailpit、本番では SES 等の SMTP）
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "25"))
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", f"noreply@{TENANT_BASE_DOMAIN}")
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

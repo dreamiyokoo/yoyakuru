@@ -3,3 +3,4 @@ psycopg2-binary>=2.9
 django-tenants>=3.6
 django-unfold>=0.40
 gunicorn>=22.0
+celery[redis]>=5.4
