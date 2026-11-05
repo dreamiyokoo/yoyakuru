@@ -93,9 +93,7 @@ REST_FRAMEWORK = {
 }
 
 # お客様へのメールに載せる予約ページのURL（店舗のサブドメイン）
-PUBLIC_BOOKING_URL_TEMPLATE = os.environ.get(
-    "PUBLIC_BOOKING_URL_TEMPLATE", "https://{subdomain}." + TENANT_BASE_DOMAIN
-)
+PUBLIC_BOOKING_URL_TEMPLATE = os.environ.get("PUBLIC_BOOKING_URL_TEMPLATE", "https://{subdomain}." + TENANT_BASE_DOMAIN)
 
 # セッションCookieは発行したホスト限定とし、親ドメインには発行しない（TENANT-03）
 SESSION_COOKIE_DOMAIN = None
@@ -139,3 +137,5 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_CHAT_MODEL = os.environ.get("OPENAI_CHAT_MODEL") or "gpt-4.1-mini"
 CHAT_PROVIDER = os.environ.get("CHAT_PROVIDER", "")  # "fake" は開発・E2E用
 CHAT_DAILY_LIMIT_PER_TENANT = int(os.environ.get("CHAT_DAILY_LIMIT_PER_TENANT") or 300)
+# 設定用のAIの、店舗ごとの1日あたりの回数（SETUP-10）。お客様の利用量には数えない
+SETUP_DAILY_LIMIT_PER_TENANT = int(os.environ.get("SETUP_DAILY_LIMIT_PER_TENANT") or 50)

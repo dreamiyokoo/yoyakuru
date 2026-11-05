@@ -110,7 +110,8 @@ class ChatUsage(TenantOwnedModel):
     """店舗ごと・日ごとのチャットのAI利用回数。原価を守る上限に使う（USAGE-04）。"""
 
     date = models.DateField()
+    purpose = models.CharField(max_length=10, default="customer", help_text="customer：お客様のチャット、setup：設定用")
     count = models.PositiveIntegerField(default=0)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=["tenant", "date"], name="chat_usage_per_day")]
+        constraints = [models.UniqueConstraint(fields=["tenant", "date", "purpose"], name="chat_usage_per_day")]

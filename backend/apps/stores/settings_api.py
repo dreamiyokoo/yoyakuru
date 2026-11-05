@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+from django.conf import settings as django_settings
 from django.db import transaction
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers, status
@@ -493,3 +495,65 @@ class StaffExceptionDetailView(SettingsView):
     def delete(self, request, subdomain, pk, eid):
         item = get_object_or_404(ShiftException.objects.for_tenant(self.tenant), pk=eid, staff_id=pk)
         return self.apply(request, lambda: item.delete() and None)
+
+
+# ---- AIチャットによる設定（SETUP-01〜06、10）と業種テンプレート（GEN-03）
+
+
+class SetupRequestSerializer(serializers.Serializer):
+    message = serializers.CharField(max_length=1000)
+    history = serializers.ListField(child=serializers.DictField(), required=False, default=list, max_length=20)
+
+    def validate_history(self, value):
+        turns = []
+        for t in value[-8:]:  # 原価を守るため、直近だけを送る
+            if t.get("role") in ("user", "assistant") and isinstance(t.get("content"), str):
+                turns.append({"role": t["role"], "content": t["content"][:1500]})
+        return turns
+
+
+class SetupAssistantView(SettingsView):
+    """オーナーの説明から設定案を作り、確認用の手順として返す。ここでは何も保存しない（SETUP-03）。"""
+
+    def post(self, request, subdomain):
+        from apps.bookings import chat
+
+        from . import setup_ai
+
+        data = SetupRequestSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        today = timezone.now().astimezone(store_tz(self.tenant)).date()
+        provider = chat.get_provider()
+        unavailable = {
+            "available": False,
+            "reply": "いまはAIで設定案を作れません。テンプレートか、各タブから設定してください。",
+            "steps": [],
+            "notes": [],
+        }
+        limit = django_settings.SETUP_DAILY_LIMIT_PER_TENANT
+        if provider is None or not chat.take_quota(self.tenant, today, "setup", limit):
+            return Response(unavailable)
+        messages = [*data.validated_data["history"], {"role": "user", "content": data.validated_data["message"]}]
+        system = setup_ai.system_prompt(self.tenant, today)
+        try:
+            content = provider.complete(system, messages, setup_ai.PLAN_SCHEMA, "plan", 1500)
+            plan = setup_ai.parse_plan(content)
+        except chat.ChatUnavailable:
+            return Response(unavailable)
+        steps, notes = setup_ai.steps_for(self.tenant, plan)
+        return Response({"available": True, "reply": plan["reply"], "steps": steps, "notes": notes})
+
+
+class SetupTemplateView(SettingsView):
+    """業種テンプレートの一覧と、選んだテンプレートの手順。AIを使わないので、AIが使えなくても初期設定できる（SETUP-08）。"""
+
+    def get(self, request, subdomain, key=None):
+        from . import setup_ai
+
+        if key is None:
+            return Response([{"key": k, "label": t["label"]} for k, t in setup_ai.TEMPLATES.items()])
+        template = setup_ai.TEMPLATES.get(key)
+        if template is None:
+            raise Http404
+        steps, notes = setup_ai.steps_for(self.tenant, template["plan"])
+        return Response({"label": template["label"], "steps": steps, "notes": notes})

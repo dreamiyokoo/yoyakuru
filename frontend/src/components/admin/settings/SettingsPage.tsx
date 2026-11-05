@@ -11,9 +11,11 @@ import { HoursTab } from "./HoursTab";
 import { ResourcesTab } from "./ResourcesTab";
 import { RulesTab } from "./RulesTab";
 import { ServicesTab } from "./ServicesTab";
+import { SetupTab } from "./SetupTab";
 import { StaffTab, type StaffSetting } from "./StaffTab";
 
 const TABS = [
+  { id: "setup", label: "AIで設定" },
   { id: "rules", label: "予約ルール" },
   { id: "hours", label: "営業時間" },
   { id: "services", label: "サービス" },
@@ -34,7 +36,7 @@ export function SettingsPage({ today = toDateKey(new Date()) }: { today?: string
 }
 
 function Body({ sub, today }: { sub: string; today: string }) {
-  const [tab, setTab] = useState<Tab>("rules");
+  const [tab, setTab] = useState<Tab>("setup");
   const staff = useLoad(`${sub}|staff-names`, () => adminApi.setting<StaffSetting[]>(sub, "staff"));
   return (
     <>
@@ -53,6 +55,7 @@ function Body({ sub, today }: { sub: string; today: string }) {
         ))}
       </div>
       <div role="tabpanel" aria-label={TABS.find((t) => t.id === tab)?.label} className="flex flex-col gap-3">
+        {tab === "setup" ? <SetupTab sub={sub} onChanged={staff.reload} /> : null}
         {tab === "rules" ? <RulesTab sub={sub} /> : null}
         {tab === "hours" ? <HoursTab sub={sub} staff={staff.data ?? []} today={today} /> : null}
         {tab === "services" ? <ServicesTab sub={sub} staff={(staff.data ?? []).filter((s) => s.is_active)} /> : null}

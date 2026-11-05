@@ -78,14 +78,15 @@ class OpenAIProvider:
         self.api_key, self.model, self.timeout = api_key, model, timeout
 
     def answer(self, system: str, messages: list[dict]) -> AiAnswer:
+        return parse_answer(self.complete(system, messages, ANSWER_SCHEMA, "answer"))
+
+    def complete(self, system: str, messages: list[dict], schema: dict, name: str, max_tokens: int = 600) -> str:
+        """JSONスキーマに沿った応答の本文（JSON文字列）を返す。"""
         body = {
             "model": self.model,
             "messages": [{"role": "system", "content": system}, *messages],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {"name": "answer", "strict": True, "schema": ANSWER_SCHEMA},
-            },
-            "max_completion_tokens": 600,
+            "response_format": {"type": "json_schema", "json_schema": {"name": name, "strict": True, "schema": schema}},
+            "max_completion_tokens": max_tokens,
         }
         req = urllib.request.Request(
             self.url,
@@ -94,15 +95,17 @@ class OpenAIProvider:
         )
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as res:  # noqa: S310  固定のhttps URL
-                data = json.loads(res.read())
-            return parse_answer(data["choices"][0]["message"]["content"])
+                return json.loads(res.read())["choices"][0]["message"]["content"]
         except (urllib.error.URLError, TimeoutError, KeyError, IndexError, ValueError) as e:
             log.warning("chat provider failed: %s", e)
             raise ChatUnavailable from e
 
 
 def parse_answer(content: str) -> AiAnswer:
-    raw = json.loads(content)
+    try:
+        raw = json.loads(content)
+    except ValueError as e:
+        raise ChatUnavailable from e
     known = {k: raw.get(k) for k in AiAnswer.__dataclass_fields__}
     known["reply"] = str(known.get("reply") or "")
     known["handoff"] = bool(known.get("handoff"))
@@ -123,6 +126,11 @@ class FakeProvider:
                 day = date.fromisoformat(facts["today"]) + timedelta(days=1 if "明日" in text else 0)
                 return AiAnswer(reply=f"{s['name']}の空きをお探しします。", service_id=s["id"], date=day.isoformat())
         return AiAnswer(reply="お店に確認が必要な内容です。お電話でお問い合わせください。", handoff=True)
+
+    def complete(self, system: str, messages: list[dict], schema: dict, name: str, max_tokens: int = 600) -> str:
+        from apps.stores.setup_ai import fake_plan
+
+        return json.dumps(fake_plan(messages[-1]["content"]))
 
 
 def get_provider() -> ChatProvider | None:
@@ -261,11 +269,12 @@ def _parse_time(value: str | None) -> int | None:
 # ---- 利用回数の上限（USAGE-04）と、AIが関わった予約の印（USAGE-01）
 
 
-def take_quota(tenant: Tenant, today: date) -> bool:
-    """1日の上限を超えていなければ1回分を数えてTrue。"""
+def take_quota(tenant: Tenant, today: date, purpose: str = "customer", limit: int | None = None) -> bool:
+    """1日の上限を超えていなければ1回分を数えてTrue。お客様のチャットと設定用のAIは別に数える（SETUP-10）。"""
+    limit = settings.CHAT_DAILY_LIMIT_PER_TENANT if limit is None else limit
     with transaction.atomic():
-        usage, _ = ChatUsage.objects.select_for_update().get_or_create(tenant=tenant, date=today)
-        if usage.count >= settings.CHAT_DAILY_LIMIT_PER_TENANT:
+        usage, _ = ChatUsage.objects.select_for_update().get_or_create(tenant=tenant, date=today, purpose=purpose)
+        if usage.count >= limit:
             return False
         ChatUsage.objects.filter(pk=usage.pk).update(count=F("count") + 1)
     return True

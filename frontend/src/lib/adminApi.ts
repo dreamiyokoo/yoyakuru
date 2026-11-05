@@ -48,6 +48,13 @@ export const adminApi = {
   deleteTimeOff: (sub: string, id: number) => mutate(`${base(sub)}/time-offs/${id}`, "DELETE"),
   /** 設定の読み込み（オーナーのみ）。 */
   setting: <T>(sub: string, path: string) => request<T>(`${base(sub)}/settings/${path}`),
+  /** 店舗の様子から設定案を作る（保存はしない）。 */
+  setupAssistant: (sub: string, message: string, history: { role: string; content: string }[]) =>
+    mutate<{ available: boolean; reply: string; steps: { label: string; path: string; method: string; body: unknown; ref?: string }[]; notes: string[] }>(
+      `${base(sub)}/settings/assistant`,
+      "POST",
+      { message, history },
+    ),
   /** 設定の変更。dryRun なら保存せず、影響を受ける予約だけを返す。 */
   changeSetting: <T>(sub: string, path: string, method: string, body: unknown, dryRun: boolean) =>
     mutate<Applied<T>>(`${base(sub)}/settings/${path}${dryRun ? "?dry_run=1" : ""}`, method, body),
