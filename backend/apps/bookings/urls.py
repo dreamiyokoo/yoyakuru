@@ -7,6 +7,7 @@ urlpatterns = [
     path("tenants/<slug:subdomain>/", views.StoreView.as_view()),
     path("tenants/<slug:subdomain>/availability", views.AvailabilityView.as_view()),
     path("tenants/<slug:subdomain>/bookings", views.HoldView.as_view()),
+    path("tenants/<slug:subdomain>/chat", views.ChatView.as_view()),
     path("bookings/confirm", views.ConfirmView.as_view()),
     path("bookings/<str:token>", views.BookingByTokenView.as_view()),
     path("bookings/<str:token>/cancel", views.CancelView.as_view()),

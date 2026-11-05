@@ -88,6 +88,7 @@ REST_FRAMEWORK = {
         "public_hold": os.environ.get("THROTTLE_PUBLIC_HOLD", "10/hour"),
         "public_token": os.environ.get("THROTTLE_PUBLIC_TOKEN", "30/min"),
         "login": os.environ.get("THROTTLE_LOGIN", "10/min"),
+        "public_chat": os.environ.get("THROTTLE_PUBLIC_CHAT", "20/hour"),
     },
 }
 
@@ -132,3 +133,9 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# 自由入力のチャット（CHAT-03〜07）。APIキーがなければAIを使わず、選択式の予約だけで動く（CHAT-02）
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_CHAT_MODEL = os.environ.get("OPENAI_CHAT_MODEL") or "gpt-4.1-mini"
+CHAT_PROVIDER = os.environ.get("CHAT_PROVIDER", "")  # "fake" は開発・E2E用
+CHAT_DAILY_LIMIT_PER_TENANT = int(os.environ.get("CHAT_DAILY_LIMIT_PER_TENANT") or 300)

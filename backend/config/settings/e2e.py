@@ -18,5 +18,7 @@ REST_FRAMEWORK = {
         "public_hold": "10000/hour",
         "public_token": "10000/min",
         "login": "10000/min",
+        "public_chat": "10000/hour",
     },
 }
+CHAT_PROVIDER = "fake"

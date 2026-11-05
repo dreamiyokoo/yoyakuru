@@ -33,7 +33,11 @@ class Command(BaseCommand):
             self.stdout.write("exists")
             return
         store = Tenant.objects.create(
-            subdomain=SUBDOMAIN, name="伏見整体院", phone="075-000-0000", address="京都市伏見区"
+            subdomain=SUBDOMAIN,
+            name="伏見整体院",
+            phone="075-000-0000",
+            address="京都市伏見区",
+            guide="駐車場は店舗の前に2台分あります。",
         )
         for wd in range(6):
             BusinessHours.objects.create(tenant=store, weekday=wd, opens_at=time(10), closes_at=time(20))

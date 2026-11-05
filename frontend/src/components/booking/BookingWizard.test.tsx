@@ -138,4 +138,73 @@ describe("BookingWizard", () => {
     await user.click(screen.getByRole("button", { name: "次へ：日時を選ぶ" }));
     expect(await screen.findByText("読み込めません")).toBeInTheDocument();
   });
+
+  it("answers a free-text question and keeps the chosen conditions", async () => {
+    const calls = mockFetch((url) =>
+      url.endsWith("/chat") ? { body: { reply: "お店にご確認ください。", handoff: true, phone: "075-000-0000", suggestion: null } } : { body: {} },
+    );
+    const user = userEvent.setup();
+    render(<BookingWizard store={STORE} today={TODAY} />);
+    await user.click(screen.getByRole("radio", { name: "全身調整" }));
+    await user.click(screen.getByRole("button", { name: "ことばで質問・検索する" }));
+    await user.type(screen.getByLabelText("質問や希望"), "腰痛に効きますか");
+    await user.click(screen.getByRole("button", { name: "送信" }));
+    expect(await screen.findByText("お店にご確認ください。")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "お店に電話する（075-000-0000）" })).toHaveAttribute("href", "tel:075-000-0000");
+    expect(screen.getByRole("radio", { name: "全身調整" })).toHaveAttribute("aria-checked", "true");
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ message: "腰痛に効きますか", history: [], context: { customer_type: "repeat", service: 1, staff: null } });
+  });
+
+  it("applies a chat suggestion, then books through the confirm screen as a chat booking", async () => {
+    const calls = mockFetch((url) => {
+      if (url.endsWith("/chat"))
+        return {
+          body: {
+            reply: "骨盤矯正の空きです。",
+            handoff: false,
+            phone: "",
+            chat_token: "tok",
+            suggestion: { customer_type: "first", service: 2, staff: 11, date: "2026-11-12", slots: [slot("15:00", "2026-11-12")] },
+          },
+        };
+      if (url.includes("availability")) return { body: { slots: [slot("15:00", "2026-11-12")] } };
+      return { status: 201, body: {} };
+    });
+    const user = userEvent.setup();
+    render(<BookingWizard store={STORE} today={TODAY} newKey={() => "k"} />);
+    await user.click(screen.getByRole("button", { name: "ことばで質問・検索する" }));
+    await user.type(screen.getByLabelText("質問や希望"), "明日の15時に骨盤矯正");
+    await user.click(screen.getByRole("button", { name: "送信" }));
+    expect(await screen.findByText("骨盤矯正の空きです。")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "11月12日（木）" })).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("button", { name: /15:00で進む/ }));
+    await user.type(screen.getByLabelText("お名前"), "山田");
+    await user.type(screen.getByLabelText("メールアドレス"), "y@example.com");
+    await user.click(screen.getByRole("button", { name: "確認へ" }));
+    expect(screen.getByText("Bさん")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "予約を送信する" }));
+    expect(await screen.findByText("確認メールを送りました")).toBeInTheDocument();
+    expect(JSON.parse(String(calls.at(-1)?.init?.body))).toMatchObject({ service: 2, staff: 11, customer_type: "first", chat_token: "tok" });
+  });
+
+  it("moves to the staff step when only a menu is suggested, and shows chat errors", async () => {
+    let n = 0;
+    mockFetch((url) => {
+      if (!url.endsWith("/chat")) return { body: { slots: [] } };
+      n += 1;
+      return n === 1
+        ? { body: { reply: "骨盤矯正ですね。", handoff: false, phone: "", suggestion: { customer_type: null, service: 2, staff: null, date: null, slots: [] } } }
+        : { status: 429, body: { detail: "しばらくしてからお試しください" } };
+    });
+    const user = userEvent.setup();
+    render(<BookingWizard store={STORE} today={TODAY} />);
+    await user.click(screen.getByRole("button", { name: "ことばで質問・検索する" }));
+    await user.type(screen.getByLabelText("質問や希望"), "骨盤");
+    await user.click(screen.getByRole("button", { name: "送信" }));
+    expect(await screen.findByText("担当者を選んでください")).toBeInTheDocument();
+    expect(screen.getByText("骨盤矯正ですね。")).toBeInTheDocument(); // 次の手順でも会話は続く
+    await user.type(screen.getByLabelText("質問や希望"), "もう一度");
+    await user.click(screen.getByRole("button", { name: "送信" }));
+    expect(await screen.findByText("しばらくしてからお試しください")).toBeInTheDocument();
+  });
 });

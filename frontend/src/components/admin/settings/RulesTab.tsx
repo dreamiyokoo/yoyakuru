@@ -12,6 +12,7 @@ interface StoreRules {
   name: string;
   phone: string;
   address: string;
+  guide: string;
   slot_interval_minutes: number;
   booking_window_days: number;
   same_day_cutoff_minutes: number;
@@ -39,6 +40,13 @@ function RulesForm({ sub, initial }: { sub: string; initial: StoreRules }) {
       <Field label="店舗名" value={v.name} onChange={(x) => set("name", x)} />
       <Field label="電話番号" type="tel" value={v.phone} onChange={(x) => set("phone", x)} hint="取消の締切後や、AIが答えられないときに案内します" />
       <Field label="住所" value={v.address} onChange={(x) => set("address", x)} />
+      <Field
+        label="お客様への案内"
+        value={v.guide ?? ""}
+        onChange={(x) => set("guide", x)}
+        multiline
+        hint="アクセス・駐車場・支払い方法・持ち物など。チャットのAIは、ここと店舗の登録内容だけをもとに答えます"
+      />
       <div className="flex flex-col gap-1.5">
         <span className="text-sm font-bold">開始時刻の刻み</span>
         <div role="radiogroup" aria-label="開始時刻の刻み" className="flex gap-2">

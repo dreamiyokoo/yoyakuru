@@ -95,6 +95,7 @@ class StoreSerializer(serializers.ModelSerializer):
     same_day_cutoff_minutes = serializers.IntegerField(min_value=0, max_value=10080)
     cancel_deadline_days = serializers.IntegerField(min_value=0, max_value=30)
     default_buffer_minutes = serializers.IntegerField(min_value=0, max_value=120)
+    guide = serializers.CharField(max_length=2000, allow_blank=True, required=False)
 
     class Meta:
         model = Tenant
@@ -102,6 +103,7 @@ class StoreSerializer(serializers.ModelSerializer):
             "name",
             "phone",
             "address",
+            "guide",
             "slot_interval_minutes",
             "booking_window_days",
             "same_day_cutoff_minutes",

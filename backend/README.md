@@ -19,6 +19,7 @@
 | GET | `tenants/{店舗名}/` | 店舗・サービス・担当者 |
 | GET | `tenants/{店舗名}/availability?service=&date=&customer_type=&staff=` | 空き枠 |
 | POST | `tenants/{店舗名}/bookings` | 15分の仮押さえ。確認メールを送る |
+| POST | `tenants/{店舗名}/chat` | 自由入力の質問・予約の希望（CHAT-03〜07）。AIは店舗の登録内容（お客様への案内を含む）だけをもとに答え、メニュー・担当・日付の候補はサーバーで検証して空き枠と一緒に返す。予約の確定は通常の確認画面で行う。返す `chat_token` を仮押さえに付けると、AIが関わった予約（`ai_assisted`）として数える。APIキーがなければAIを使わず、選択肢と電話を案内する |
 | POST | `bookings/confirm` | 確認メールのトークンで確定。予定ファイル付きのメールを送る |
 | GET | `bookings/{token}` | 予約内容と取消の締切 |
 | POST | `bookings/{token}/cancel` | 取消（締切まで） |

@@ -61,4 +61,27 @@ export interface HoldRequest {
   customer_phone: string;
   note: string;
   idempotency_key: string;
+  /** 自由入力のチャットを使った会話からの予約（AIが関わった予約として数える） */
+  chat_token?: string;
+}
+
+export interface ChatSuggestion {
+  customer_type: CustomerType | null;
+  service: number | null;
+  staff: number | null;
+  date: string | null;
+  slots: Slot[];
+}
+
+export interface ChatReply {
+  reply: string;
+  handoff: boolean;
+  phone: string;
+  suggestion: ChatSuggestion | null;
+  chat_token?: string;
+}
+
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
 }
