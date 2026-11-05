@@ -24,6 +24,22 @@
 | POST | `bookings/{token}/cancel` | 取消（締切まで） |
 | GET | `bookings/{token}/ics` | 確定した予約の予定ファイル |
 
+## 店舗利用者向けAPI
+
+| メソッド | パス | 内容 |
+|---|---|---|
+| GET | `/api/v1/auth/csrf` | CSRFトークンのCookieを発行 |
+| POST | `/api/v1/auth/login`・`logout` | ログイン・ログアウト（セッション） |
+| GET | `/api/v1/auth/me` | ログインユーザーと所属店舗 |
+| GET | `/api/v1/admin/tenants/{店舗名}/options` | フォーム用のサービス・担当者と自分の権限 |
+| GET・POST | `.../bookings` | 予約一覧（期間・担当で絞り込み）、手入力の予約（確定で作成） |
+| GET | `.../bookings/{id}` | 予約の詳細と履歴 |
+| POST | `.../bookings/{id}/cancel`・`reschedule` | 店舗による取消、日時・担当の変更（オーナーのみ） |
+| GET | `.../availability`・`calendar` | 締切を適用しない空き枠、日表示のカレンダー |
+| GET・POST・DELETE | `.../time-offs` | 休み・予約不可時間。登録時に影響を受ける予約を返す |
+
+所属していない店舗は403。スタッフは自分が担当する予約と自分の休みだけを扱える（3章の権限表）。
+
 期限切れの仮押さえは空き判定で自動的に除外される。記録の整理は `python manage.py expire_holds` で行う。
 
 ## 主な設計
@@ -44,4 +60,4 @@ python -m pytest --cov --cov-fail-under=95
 pip-audit -r requirements-dev.txt
 ```
 
-開発・E2E用のデモ店舗は `python manage.py seed_demo`（`--reset` で作り直し）で作れる。
+開発・E2E用のデモ店舗は `python manage.py seed_demo`（`--reset` で作り直し）で作れる。`DEMO_USER_PASSWORD` を設定すると、オーナー（`owner@fushimi.example`）とスタッフ（`staff@fushimi.example`）のログインも作る。
