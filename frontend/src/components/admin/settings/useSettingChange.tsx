@@ -20,14 +20,14 @@ interface Pending {
  * 設定の変更。まず保存せずに試し（dry_run）、影響を受ける予約があれば確認してから保存する（TIME-07、画面33）。
  * 既存の予約は自動で取消さない。
  */
-export function useSettingChange(sub: string) {
+export function useSettingChange(sub: string, source?: "ai") {
   const [pending, setPending] = useState<Pending | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const commit = async (p: Omit<Pending, "affected">) => {
-    const res = await adminApi.changeSetting(sub, p.path, p.method, p.body, false);
+    const res = await adminApi.changeSetting(sub, p.path, p.method, p.body, false, source);
     setPending(null);
     setMessage(res.affected_bookings.length ? `保存しました。影響を受ける予約が${res.affected_bookings.length}件あります。` : "保存しました。");
     p.onDone?.(res.result);
@@ -38,7 +38,7 @@ export function useSettingChange(sub: string) {
     setError("");
     setMessage("");
     try {
-      const preview = await adminApi.changeSetting(sub, path, method, body, true);
+      const preview = await adminApi.changeSetting(sub, path, method, body, true, source);
       if (preview.affected_bookings.length) setPending({ path, method, body, affected: preview.affected_bookings, onDone });
       else await commit({ path, method, body, onDone });
     } catch (e) {

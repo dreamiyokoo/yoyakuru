@@ -66,6 +66,14 @@ test("オーナーは設定を変更でき、スタッフは設定を変更で�
   await page.getByRole("button", { name: "設備を追加" }).click();
   await expect(page.getByText("保存しました。")).toBeVisible();
   await expect(page.getByText(name)).toBeVisible();
+  // 直前の変更（設備の追加）を履歴から取り消す
+  await page.getByRole("tab", { name: "履歴" }).click();
+  await expect(page.getByText("設備の追加").first()).toBeVisible();
+  await page.getByRole("button", { name: "直前の変更を取り消す" }).click();
+  await expect(page.getByText("保存しました。")).toBeVisible();
+  await page.getByRole("tab", { name: "設備" }).click();
+  await expect(page.getByLabel("設備の名前")).toBeVisible();
+  await expect(page.getByText(name)).toHaveCount(0);
   await page.getByRole("tab", { name: "担当者" }).click();
   await page.getByRole("button", { name: "勤務" }).first().click();
   await expect(page.getByRole("heading", { name: "週の勤務" })).toBeVisible();

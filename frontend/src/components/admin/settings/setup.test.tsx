@@ -23,7 +23,7 @@ const STEPS = [
 const AFFECTED = { id: 7, starts_at: "2026-11-11T10:00:00+09:00", service_name: "全身調整", staff_name: "A", customer_name: "山田" };
 
 function backend({ assistant = { available: true, reply: "案を作りました", steps: STEPS.slice(2), notes: ["担当者「Z」が見つかりません"] }, affects = [] as string[] } = {}) {
-  const writes: { path: string; body: unknown }[] = [];
+  const writes: { path: string; body: unknown; source?: string }[] = [];
   const calls = mockFetch((url, init) => {
     if (url.endsWith("/auth/me")) return { body: owner };
     if (url.endsWith("/auth/csrf")) {
@@ -35,9 +35,17 @@ function backend({ assistant = { available: true, reply: "案を作りました"
     if (path === "templates/seitai") return { body: { label: "整体・治療院", steps: STEPS, notes: [] } };
     if (path === "templates/general") return { status: 500, body: { detail: "作れません" } };
     if (path === "assistant") return { body: assistant };
+    if (path === "history" && !init?.method)
+      return {
+        body: { undoable: true, items: [
+          { id: 3, label: "直前の変更を取り消し", source: "undo", actor_name: "院長", created_at: "2026-11-05T10:00:00+09:00", reverted: false },
+          { id: 2, label: "設備の追加", source: "ai", actor_name: "院長", created_at: "2026-11-05T09:00:00+09:00", reverted: true },
+          { id: 1, label: "営業時間の変更", source: "manual", actor_name: "院長", created_at: "2026-11-05T08:00:00+09:00", reverted: false },
+        ] },
+      };
     if (path === "staff" && !init?.method) return { body: [{ id: 10, display_name: "A", title: "", priority: 1, is_active: true }, { id: 11, display_name: "B", title: "", priority: 2, is_active: false }] };
     if (init?.method && init.method !== "GET") {
-      if (query !== "1") writes.push({ path, body: JSON.parse(String(init.body)) });
+      if (query !== "1") writes.push({ path, body: JSON.parse(String(init.body)), source: (init.headers as Record<string, string>)["X-Setting-Source"] });
       return { body: { applied: query !== "1", result: path === "resources" ? { id: 77 } : {}, affected_bookings: affects.includes(path) ? [AFFECTED] : [] } };
     }
     return { body: [] };
@@ -72,8 +80,8 @@ describe("AI setup", () => {
     expect(await screen.findByText(/設定案の確認が終わりました/)).toBeInTheDocument();
     expect(screen.getByText("– スキップ：営業時間：月 10:00〜20:00")).toBeInTheDocument();
     expect(be.writes).toEqual([
-      { path: "resources", body: { name: "ベッド", quantity: 2 } },
-      { path: "services", body: { name: "全身調整", resource: 77, staff: [10] } },
+      { path: "resources", body: { name: "ベッド", quantity: 2 }, source: "ai" },
+      { path: "services", body: { name: "全身調整", resource: 77, staff: [10] }, source: "ai" },
     ]);
   });
 
@@ -127,5 +135,17 @@ describe("AI setup", () => {
     const last = JSON.parse(String(be.calls.filter((c) => c.url.endsWith("/assistant"))[5].init?.body));
     expect(last.history).toHaveLength(8);
     expect(last.history[0].content).toBe("m1");
+  });
+
+  it("lists the change history and undoes the last change after confirming its impact", async () => {
+    const be = backend({ affects: ["history/undo"] });
+    renderPage();
+    await userEvent.click(await screen.findByRole("tab", { name: "履歴" }));
+    expect(await screen.findByText("営業時間の変更")).toBeInTheDocument();
+    expect(screen.getByText("AIで設定", { selector: "li span" })).toBeInTheDocument();
+    expect(screen.getByText("（取り消し済み）")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "直前の変更を取り消す" }));
+    await userEvent.click(await screen.findByRole("button", { name: "変更を保存する" }));
+    await waitFor(() => expect(be.writes).toEqual([{ path: "history/undo", body: {}, source: undefined }]));
   });
 });

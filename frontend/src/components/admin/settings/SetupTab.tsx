@@ -125,7 +125,7 @@ function StepRunner({ sub, plan, onChanged }: { sub: string; plan: Plan; onChang
   const [index, setIndex] = useState(0);
   const [refs, setRefs] = useState<Record<string, number>>({});
   const [done, setDone] = useState<{ label: string; applied: boolean }[]>([]);
-  const { change, busy, ui, cancel } = useSettingChange(sub);
+  const { change, busy, ui, cancel } = useSettingChange(sub, "ai"); // 履歴にAIによる変更として残す
   const step = plan.steps[index];
 
   const next = (applied: boolean) => {
