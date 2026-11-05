@@ -7,7 +7,7 @@ import { STORE, mockFetch } from "@/test-utils";
 import { AdminProvider } from "./AdminContext";
 import { BookingDetailPage } from "./BookingDetailPage";
 import { BookingListPage } from "./BookingListPage";
-import { CalendarPage } from "./CalendarPage";
+import { CalendarPage, minutesOnDay } from "./CalendarPage";
 import { LoginPage } from "./LoginPage";
 import { NewBookingPage } from "./NewBookingPage";
 import { TimeOffPage } from "./TimeOffPage";
@@ -222,6 +222,15 @@ function fireDate(input: HTMLElement, value: string) {
 }
 
 describe("calendar and time off", () => {
+  it("clips blocks to the displayed day", () => {
+    // 前日15時〜当日17時の休みは、当日は表示開始（9時）から17時まで
+    expect(minutesOnDay("2026-11-10T15:00:00+09:00", "2026-11-11")).toBe(0);
+    expect(minutesOnDay("2026-11-11T17:00:00+09:00", "2026-11-11")).toBe(8 * 60);
+    // 当日0時〜翌日0時は、表示範囲（9〜21時）いっぱい
+    expect(minutesOnDay("2026-11-12T00:00:00+09:00", "2026-11-11")).toBe(12 * 60);
+    expect(minutesOnDay("2026-11-11T10:30:00+09:00", "2026-11-11")).toBe(90);
+  });
+
   it("shows the day with staff columns, breaks and time off", async () => {
     const calls = api((url) =>
       url.includes("/calendar?")

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, time, timedelta
 
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
@@ -211,6 +212,9 @@ class CalendarView(TenantAdminView):
             if b.weekday in (None, day.weekday())
         ]
         time_offs = TimeOff.objects.for_tenant(self.tenant).filter(starts_at__lt=end, ends_at__gt=start)
+        if not self.is_owner:
+            # スタッフには、ほかの人の休み（理由を含む）を見せない。店舗全体の予約不可は見せる
+            time_offs = time_offs.filter(Q(staff__isnull=True) | Q(staff_id=self.membership.staff_id))
         bookings = self.bookings().filter(
             starts_at__lt=end, ends_at__gt=start, status__in=[BookingStatus.CONFIRMED, BookingStatus.HOLD]
         )

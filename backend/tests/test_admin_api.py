@@ -234,6 +234,28 @@ class TestCalendarAndTimeOff:
         assert c.delete(f"{BASE}/time-offs/{r.json()['id']}").status_code == 204
 
 
+def test_staff_calendar_hides_colleagues_time_off(service, staff, member):
+    tenant = service.tenant
+    TimeOff.objects.create(tenant=tenant, staff=staff[0], starts_at=at(10), ends_at=at(11), reason="通院")
+    mine = TimeOff.objects.create(tenant=tenant, staff=staff[1], starts_at=at(15), ends_at=at(16), reason="私用")
+    store_wide = TimeOff.objects.create(tenant=tenant, starts_at=at(18), ends_at=at(19), reason="研修")
+    r = client_for(member).get(f"{BASE}/calendar", {"date": DAY}).json()
+    assert sorted(t["id"] for t in r["time_offs"]) == sorted([mine.id, store_wide.id])
+    assert "通院" not in str(r)
+
+
+def test_cancel_sequence_is_newer_than_every_change(service, staff, owner):
+    b = book(service, staff[0], at(10))
+    c = client_for(owner)
+    for start in (at(15), at(16)):
+        c.post(
+            f"{BASE}/bookings/{b.id}/reschedule", {"starts_at": start.isoformat(), "staff": staff[0].id}, format="json"
+        )
+    assert "SEQUENCE:2" in mail.outbox[-1].attachments[0][1]
+    c.post(f"{BASE}/bookings/{b.id}/cancel")
+    assert "SEQUENCE:3" in mail.outbox[-1].attachments[0][1]
+
+
 def test_seed_demo_creates_users(db, monkeypatch):
     from django.core.management import call_command
 
