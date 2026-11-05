@@ -34,7 +34,8 @@ export function BookingWizard({ store, today = toDateKey(new Date()), newKey = (
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [taken, setTaken] = useState<Slot[] | null>(null);
-  const idempotencyKey = useRef<string | null>(null);
+  // 同じ予約内容の再送では同じキーを使い、サーバー側で二重に仮押さえしない
+  const idempotency = useRef<{ intent: string; key: string } | null>(null);
 
   const service = store.services.find((s) => s.id === serviceId) ?? null;
   const staffOptions = useMemo(() => store.staff.filter((s) => serviceId !== null && s.service_ids.includes(serviceId)), [store.staff, serviceId]);
@@ -59,22 +60,25 @@ export function BookingWizard({ store, today = toDateKey(new Date()), newKey = (
     if (!service || !slot) return;
     setSubmitting(true);
     setSubmitError("");
-    idempotencyKey.current ??= newKey();
+    const request = {
+      service: service.id,
+      staff: staffId,
+      starts_at: slot.starts_at,
+      customer_type: customerType,
+      customer_name: form.name.trim(),
+      customer_email: form.email.trim(),
+      customer_phone: form.phone.trim(),
+      note: form.note.trim(),
+    };
+    const intent = JSON.stringify(request);
+    if (idempotency.current?.intent !== intent) idempotency.current = { intent, key: newKey() };
     try {
-      await createHold(store.subdomain, {
-        service: service.id,
-        staff: staffId,
-        starts_at: slot.starts_at,
-        customer_type: customerType,
-        customer_name: form.name.trim(),
-        customer_email: form.email.trim(),
-        customer_phone: form.phone.trim(),
-        note: form.note.trim(),
-        idempotency_key: idempotencyKey.current,
-      });
+      await createHold(store.subdomain, { ...request, idempotency_key: idempotency.current.key });
       setStep("sent");
     } catch (e) {
-      idempotencyKey.current = null;
+      // はっきり断られた場合だけキーを捨てる。通信エラーやサーバーエラーでは、
+      // 仮押さえ済みで返事だけ失われた可能性があるため、同じキーで再送する
+      if (e instanceof ApiError && (e.status === 400 || e.status === 409)) idempotency.current = null;
       if (e instanceof ApiError && e.status === 409) {
         const res = await fetchAvailability(store.subdomain, { service: service.id, date, customer_type: customerType, staff: staffId }).catch(
           () => ({ slots: [] as Slot[] }),

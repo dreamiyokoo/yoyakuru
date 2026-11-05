@@ -46,13 +46,14 @@ describe("BookingWizard", () => {
 
   it("offers nearby slots when the slot was taken", async () => {
     let holds = 0;
-    mockFetch((url) => {
+    const calls = mockFetch((url) => {
       if (url.includes("availability")) return { body: { slots: [slot("10:00"), slot("10:30"), slot("11:00"), slot("11:30")] } };
       holds += 1;
       return holds === 1 ? { status: 409, body: { code: "slot_unavailable", message: "x" } } : { status: 201, body: {} };
     });
     const user = userEvent.setup();
-    render(<BookingWizard store={STORE} today={TODAY} newKey={() => `k${holds}`} />);
+    let n = 0;
+    render(<BookingWizard store={STORE} today={TODAY} newKey={() => `k${++n}`} />);
     await goToConfirm(user);
     await user.click(screen.getByRole("button", { name: "予約を送信する" }));
     expect(await screen.findByText(/ほかの方のご予約で埋まりました/)).toBeInTheDocument();
@@ -61,6 +62,8 @@ describe("BookingWizard", () => {
     expect(screen.getByText("11月11日（水）11:00")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "予約を送信する" }));
     expect(await screen.findByText("確認メールを送りました")).toBeInTheDocument();
+    const keys = calls.filter((c) => c.url.endsWith("/bookings")).map((c) => JSON.parse(String(c.init?.body)).idempotency_key);
+    expect(keys).toEqual(["k1", "k2"]); // 断られた後に別の枠を選んだら新しいキー
   });
 
   it("lets the customer pick another date after a conflict", async () => {
@@ -104,6 +107,26 @@ describe("BookingWizard", () => {
     await user.click(screen.getByRole("radio", { name: "指名なし（おまかせ）" }));
     await user.click(screen.getByRole("button", { name: "戻る" }));
     expect(screen.getByRole("radio", { name: "骨盤矯正" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("reuses the idempotency key when retrying after a network error", async () => {
+    let attempt = 0;
+    const calls = mockFetch((url) => {
+      if (url.includes("availability")) return { body: { slots: [slot("10:30")] } };
+      attempt += 1;
+      if (attempt === 1) throw new TypeError("network");
+      return { status: 201, body: {} };
+    });
+    let n = 0;
+    const user = userEvent.setup();
+    render(<BookingWizard store={STORE} today={TODAY} newKey={() => `key-${++n}`} />);
+    await goToConfirm(user);
+    await user.click(screen.getByRole("button", { name: "予約を送信する" }));
+    expect(await screen.findByText(/通信に失敗しました/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "予約を送信する" }));
+    expect(await screen.findByText("確認メールを送りました")).toBeInTheDocument();
+    const keys = calls.filter((c) => c.url.endsWith("/bookings")).map((c) => JSON.parse(String(c.init?.body)).idempotency_key);
+    expect(keys).toEqual(["key-1", "key-1"]);
   });
 
   it("shows availability errors", async () => {
