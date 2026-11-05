@@ -37,11 +37,11 @@ function backend({ assistant = { available: true, reply: "案を作りました"
     if (path === "assistant") return { body: assistant };
     if (path === "history" && !init?.method)
       return {
-        body: [
+        body: { undoable: true, items: [
           { id: 3, label: "直前の変更を取り消し", source: "undo", actor_name: "院長", created_at: "2026-11-05T10:00:00+09:00", reverted: false },
           { id: 2, label: "設備の追加", source: "ai", actor_name: "院長", created_at: "2026-11-05T09:00:00+09:00", reverted: true },
           { id: 1, label: "営業時間の変更", source: "manual", actor_name: "院長", created_at: "2026-11-05T08:00:00+09:00", reverted: false },
-        ],
+        ] },
       };
     if (path === "staff" && !init?.method) return { body: [{ id: 10, display_name: "A", title: "", priority: 1, is_active: true }, { id: 11, display_name: "B", title: "", priority: 2, is_active: false }] };
     if (init?.method && init.method !== "GET") {

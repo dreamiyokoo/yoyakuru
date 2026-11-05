@@ -587,19 +587,28 @@ class HistoryView(SettingsView):
         from . import history
 
         changes = SettingChange.objects.for_tenant(self.tenant).select_related("actor")[:30]
+        undoable = _undo_target(self.tenant) is not None  # 表示している30件の外にも、戻せる変更があるか
         return Response(
-            [
-                {
-                    "id": c.id,
-                    "label": history.describe(c.method, c.path),
-                    "source": c.source,
-                    "actor_name": (c.actor.get_full_name() or c.actor.email) if c.actor else "",
-                    "created_at": c.created_at,
-                    "reverted": c.reverted_at is not None,
-                }
-                for c in changes
-            ]
+            {
+                "undoable": undoable,
+                "items": [
+                    {
+                        "id": c.id,
+                        "label": history.describe(c.method, c.path),
+                        "source": c.source,
+                        "actor_name": (c.actor.get_full_name() or c.actor.email) if c.actor else "",
+                        "created_at": c.created_at,
+                        "reverted": c.reverted_at is not None,
+                    }
+                    for c in changes
+                ],
+            }
         )
+
+
+def _undo_target(tenant: Tenant) -> SettingChange | None:
+    """取り消していない最新の変更（取り消し自体は対象にしない）。"""
+    return SettingChange.objects.for_tenant(tenant).exclude(source="undo").filter(reverted_at=None).first()
 
 
 class UndoView(SettingsView):
@@ -608,11 +617,12 @@ class UndoView(SettingsView):
     def post(self, request, subdomain):
         from . import history
 
-        target = SettingChange.objects.for_tenant(self.tenant).exclude(source="undo").filter(reverted_at=None).first()
-        if target is None:
-            raise serializers.ValidationError("取り消せる変更はありません")
-
         def change():
+            # 店舗のロックを取った後に選ぶ。先に選ぶと、同時に保存された変更を黙って捨てたり、
+            # 同じ変更を二重に戻したりする
+            target = _undo_target(self.tenant)
+            if target is None:
+                raise serializers.ValidationError("取り消せる変更はありません")
             snap = history.snapshot(self.tenant)
             history.restore(self.tenant, target.snapshot)
             target.reverted_at = timezone.now()

@@ -19,11 +19,11 @@ const SOURCE: Record<Change["source"], string> = { manual: "画面", ai: "AIで�
 
 /** 35 設定の変更履歴（SETUP-07）。AIによる変更か手動の変更かを残し、直前の状態に戻せる。 */
 export function HistoryTab({ sub, onChanged }: { sub: string; onChanged?: () => void }) {
-  const list = useLoad(`${sub}|history`, () => adminApi.setting<Change[]>(sub, "history"));
+  const list = useLoad(`${sub}|history`, () => adminApi.setting<{ undoable: boolean; items: Change[] }>(sub, "history"));
   const { change, busy, ui } = useSettingChange(sub);
   if (list.error) return <p className="text-sm text-danger">{list.error}</p>;
   if (!list.data) return <p className="text-sm text-sub">読み込み中…</p>;
-  const undoable = list.data.some((c) => c.source !== "undo" && !c.reverted);
+  const { undoable, items } = list.data; // 戻せるかはサーバーが履歴全体で判断する（表示は直近30件）
   return (
     <>
       {ui}
@@ -40,9 +40,9 @@ export function HistoryTab({ sub, onChanged }: { sub: string; onChanged?: () => 
         直前の変更を取り消す
       </Button>
       <p className="text-xs text-sub">取り消すと、その変更の前の設定に戻ります。続けて押すと、さらに前の変更も取り消せます。</p>
-      {list.data.length === 0 ? <p className="text-sm text-sub">変更の履歴はまだありません。</p> : null}
+      {items.length === 0 ? <p className="text-sm text-sub">変更の履歴はまだありません。</p> : null}
       <ul className="flex flex-col gap-2">
-        {list.data.map((c) => (
+        {items.map((c) => (
           <li key={c.id} className={`rounded-xl border border-line px-4 py-2 text-sm ${c.reverted ? "text-sub line-through" : ""}`}>
             <span className="font-bold">{c.label}</span>
             <span className="ml-2 rounded-full bg-muted px-2 text-xs no-underline">{SOURCE[c.source]}</span>

@@ -25,7 +25,9 @@ def test_changes_are_recorded_with_source_and_dry_runs_are_not(store, service, o
     assert not SettingChange.objects.exists()
     c.put(f"{S}/hours", [{"weekday": 0, "opens_at": "09:00", "closes_at": "18:00"}], format="json")
     c.post(f"{S}/resources", {"name": "個室", "quantity": 1}, format="json", HTTP_X_SETTING_SOURCE="ai")
-    rows = c.get(f"{S}/history").json()
+    body = c.get(f"{S}/history").json()
+    rows = body["items"]
+    assert body["undoable"] is True
     assert [(r["label"], r["source"], r["reverted"]) for r in rows] == [
         ("設備の追加", "ai", False),
         ("営業時間の変更", "manual", False),
@@ -59,7 +61,9 @@ def test_undo_restores_the_previous_state_step_by_step(store, staff, service, be
     assert not DateOverride.objects.filter(tenant=store).exists()
     assert not ShiftException.objects.filter(tenant=store).exists()
     assert c.post(f"{S}/history/undo", {}, format="json").status_code == 400  # もう戻せない
-    labels = [(r["label"], r["reverted"]) for r in c.get(f"{S}/history").json()]
+    body = c.get(f"{S}/history").json()
+    assert body["undoable"] is False
+    labels = [(r["label"], r["reverted"]) for r in body["items"]]
     assert labels[0] == ("直前の変更を取り消し", False) and ("サービスの変更", True) in labels
 
 
@@ -124,3 +128,34 @@ def test_times_round_trip(store):
     BusinessHours.objects.filter(tenant=store).update(opens_at=time(11))
     history.restore(store, snap)
     assert BusinessHours.objects.filter(tenant=store, opens_at=time(10)).count() == 6
+
+
+def test_undo_is_still_offered_beyond_the_displayed_page(store, owner):
+    for _ in range(16):
+        history.record(store, None, "manual", "PUT", "store", history.snapshot(store))
+    c = client_for(owner)
+    for _ in range(15):
+        assert c.post(f"{S}/history/undo", {}, format="json").status_code == 200
+    body = c.get(f"{S}/history").json()
+    assert len(body["items"]) == 30 and all(r["source"] == "undo" or r["reverted"] for r in body["items"])
+    assert body["undoable"] is True  # 表示の外に、まだ戻せる変更が1件ある
+
+
+def test_undo_picks_the_latest_change_after_taking_the_lock(monkeypatch, store, owner):
+    """ロックの前に別の変更が保存されても、ロック後の最新の変更を取り消す。"""
+    from apps.stores import settings_api
+
+    old = history.record(store, None, "manual", "PUT", "store", history.snapshot(store))
+    real_apply = settings_api.SettingsView.apply
+
+    def apply_after_another_change(self, request, change, *args, **kwargs):
+        newer = history.record(store, None, "manual", "PUT", "hours", history.snapshot(store))
+        response = real_apply(self, request, change, *args, **kwargs)
+        newer.refresh_from_db()
+        assert newer.reverted_at is not None
+        return response
+
+    monkeypatch.setattr(settings_api.SettingsView, "apply", apply_after_another_change)
+    assert client_for(owner).post(f"{S}/history/undo", {}, format="json").status_code == 200
+    old.refresh_from_db()
+    assert old.reverted_at is None
