@@ -22,6 +22,12 @@ const base = (sub: string) => `/api/v1/admin/tenants/${encodeURIComponent(sub)}`
 const qs = (params: Record<string, string | number | undefined | null>) =>
   new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "") as [string, string][]).toString();
 
+export interface Applied<T> {
+  applied: boolean;
+  result: T;
+  affected_bookings: AdminBooking[];
+}
+
 export const adminApi = {
   me: () => request<Me>(`${AUTH}/me`),
   login: (email: string, password: string) => mutate<Me>(`${AUTH}/login`, "POST", { email, password }),
@@ -40,4 +46,9 @@ export const adminApi = {
   timeOffs: (sub: string, from?: string) => request<TimeOff[]>(`${base(sub)}/time-offs?${qs({ from })}`),
   createTimeOff: (sub: string, body: Record<string, unknown>) => mutate<TimeOff>(`${base(sub)}/time-offs`, "POST", body),
   deleteTimeOff: (sub: string, id: number) => mutate(`${base(sub)}/time-offs/${id}`, "DELETE"),
+  /** 設定の読み込み（オーナーのみ）。 */
+  setting: <T>(sub: string, path: string) => request<T>(`${base(sub)}/settings/${path}`),
+  /** 設定の変更。dryRun なら保存せず、影響を受ける予約だけを返す。 */
+  changeSetting: <T>(sub: string, path: string, method: string, body: unknown, dryRun: boolean) =>
+    mutate<Applied<T>>(`${base(sub)}/settings/${path}${dryRun ? "?dry_run=1" : ""}`, method, body),
 };

@@ -10,7 +10,7 @@ from apps.bookings.services import create_booking
 from apps.stores.models import Membership, Role, Service, Staff, TimeOff
 from apps.tenants.models import Tenant
 
-from .conftest import DAY, NOW, at
+from .conftest import DAY, NOW, at, client_for, user
 
 BASE = "/api/v1/admin/tenants/fushimi"
 
@@ -20,30 +20,6 @@ def _clear_cache():
     from django.core.cache import cache
 
     cache.clear()
-
-
-def user(email, password="pw-123456!"):
-    return get_user_model().objects.create_user(username=email, email=email, password=password)
-
-
-@pytest.fixture
-def owner(store, staff):
-    u = user("owner@example.com")
-    Membership.objects.create(tenant=store, user=u, role=Role.OWNER, staff=staff[0])
-    return u
-
-
-@pytest.fixture
-def member(store, staff):
-    u = user("staff@example.com")
-    Membership.objects.create(tenant=store, user=u, role=Role.STAFF, staff=staff[1])
-    return u
-
-
-def client_for(u):
-    c = APIClient()
-    c.force_login(u)
-    return c
 
 
 def book(service, staff=None, start=None, email="c@example.com"):

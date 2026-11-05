@@ -48,3 +48,23 @@ test("店舗のサブドメインでは管理画面を開けない", async ({ pa
   const res = await page.goto("http://fushimi.localhost:3000/login");
   expect(res?.status()).toBe(404);
 });
+
+test("オーナーは設定を変更でき、スタッフは設定を変更できない", async ({ page }) => {
+  await login(page, "owner@fushimi.example");
+  await page.getByRole("link", { name: "設定" }).click();
+  await expect(page.getByLabel("店舗名")).toHaveValue(/./);
+  await page.getByRole("tab", { name: "設備" }).click();
+  const name = `E2E設備${Date.now()}`;
+  await page.getByLabel("設備の名前").fill(name);
+  await page.getByRole("button", { name: "設備を追加" }).click();
+  await expect(page.getByText("保存しました。")).toBeVisible();
+  await expect(page.getByText(name)).toBeVisible();
+  await page.getByRole("tab", { name: "担当者" }).click();
+  await page.getByRole("button", { name: "勤務" }).first().click();
+  await expect(page.getByRole("heading", { name: "週の勤務" })).toBeVisible();
+  await page.getByRole("button", { name: "ログアウト" }).click();
+
+  await login(page, "staff@fushimi.example");
+  await page.getByRole("link", { name: "設定" }).click();
+  await expect(page.getByText("設定はオーナーのみ変更できます。")).toBeVisible();
+});

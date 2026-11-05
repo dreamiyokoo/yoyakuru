@@ -48,3 +48,35 @@ def service(store, staff, beds):
     )
     s.staff.set(staff)
     return s
+
+
+def user(email, password="pw-123456!"):
+    from django.contrib.auth import get_user_model
+
+    return get_user_model().objects.create_user(username=email, email=email, password=password)
+
+
+def client_for(u):
+    from rest_framework.test import APIClient
+
+    c = APIClient()
+    c.force_login(u)
+    return c
+
+
+@pytest.fixture
+def owner(store, staff):
+    from apps.stores.models import Membership, Role
+
+    u = user("owner@example.com")
+    Membership.objects.create(tenant=store, user=u, role=Role.OWNER, staff=staff[0])
+    return u
+
+
+@pytest.fixture
+def member(store, staff):
+    from apps.stores.models import Membership, Role
+
+    u = user("staff@example.com")
+    Membership.objects.create(tenant=store, user=u, role=Role.STAFF, staff=staff[1])
+    return u

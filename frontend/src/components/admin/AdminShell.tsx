@@ -9,6 +9,7 @@ const TABS = [
   { href: "/bookings", label: "予約" },
   { href: "/calendar", label: "カレンダー" },
   { href: "/time-off", label: "休み" },
+  { href: "/settings", label: "設定" },
 ];
 
 /** 管理画面の枠（ヘッダーと下部のタブ）。店舗に所属していなければ案内だけを出す。 */
