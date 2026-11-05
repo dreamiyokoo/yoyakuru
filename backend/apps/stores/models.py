@@ -34,6 +34,8 @@ class Staff(TenantOwnedModel):
         "指名なしの優先順位", default=100, help_text="小さいほど優先（ASSIGN-01）"
     )
     is_active = models.BooleanField("有効", default=True)
+    # 自分の予約を読み取り専用で配信するカレンダーURLのトークン（CAL-06）。再発行で古いURLは無効になる
+    calendar_token = models.CharField(max_length=64, null=True, blank=True, unique=True, editable=False)  # noqa: DJ001
 
     class Meta:
         verbose_name = verbose_name_plural = "担当者"

@@ -95,9 +95,10 @@ describe("settings", () => {
     await userEvent.clear(screen.getByLabelText("何日先まで受け付けるか（日）"));
     await userEvent.type(screen.getByLabelText("何日先まで受け付けるか（日）"), "90");
     for (const label of ["電話番号", "住所", "準備時間の既定値（分）"]) await userEvent.type(screen.getByLabelText(label), "1");
+    await userEvent.click(screen.getByRole("checkbox", { name: "カレンダー配信にお客様の名前を含める" }));
     await userEvent.click(screen.getByRole("button", { name: "保存する" }));
     expect(await screen.findByText("保存しました。")).toBeInTheDocument();
-    expect(be.writes()[0]).toMatchObject({ path: "store", method: "PUT", body: { name: "伏見整体", slot_interval_minutes: 15, same_day_cutoff_minutes: 1440, cancel_deadline_days: 2, booking_window_days: 90 } });
+    expect(be.writes()[0]).toMatchObject({ path: "store", method: "PUT", body: { name: "伏見整体", calendar_shows_customer_name: true, slot_interval_minutes: 15, same_day_cutoff_minutes: 1440, cancel_deadline_days: 2, booking_window_days: 90 } });
   });
 
   it("shows load errors", async () => {

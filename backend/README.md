@@ -24,6 +24,7 @@
 | GET | `bookings/{token}` | 予約内容と取消の締切 |
 | POST | `bookings/{token}/cancel` | 取消（締切まで） |
 | GET | `bookings/{token}/ics` | 確定した予約の予定ファイル |
+| GET | `calendar/{token}.ics` | 担当者ごとの読み取り専用カレンダー（CAL-06）。確定した予約の時間・メニュー・「予約あり」だけを載せる。お客様の名前は店舗の設定で載せられるが、連絡先は載せない（CAL-07） |
 
 ## 店舗利用者向けAPI
 
@@ -37,6 +38,7 @@
 | GET | `.../bookings/{id}` | 予約の詳細と履歴 |
 | POST | `.../bookings/{id}/cancel`・`reschedule` | 店舗による取消、日時・担当の変更（オーナーのみ） |
 | GET | `.../availability`・`calendar` | 締切を適用しない空き枠、日表示のカレンダー |
+| GET・POST・DELETE | `.../calendar-feed` | 自分（担当者）のカレンダー配信URLの確認・発行（再発行で古いURLは無効）・停止 |
 | GET・POST・DELETE | `.../time-offs` | 休み・予約不可時間。登録時に影響を受ける予約を返す |
 | GET・PUT・POST・PATCH・DELETE | `.../settings/*` | 設定（店舗・営業時間・休憩・臨時休業・設備・サービス・担当者・並び順・勤務・勤務の例外）。オーナーのみ。`?dry_run=1` は保存せず、新たに成り立たなくなる予約（`affected_bookings`）だけを返す。既存の予約は自動で取消さない |
 | GET・POST | `.../settings/history`・`history/undo` | 設定の変更履歴（変更前の設定、変更した人、経路＝画面・AI・取り消し）と、直前の変更の取り消し（SETUP-07）。取り消しも `?dry_run=1` で影響を受ける予約を確認できる。あとから作られた担当者・サービスは停止し、使われていない設備は削除する |

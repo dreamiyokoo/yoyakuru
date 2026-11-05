@@ -59,3 +59,33 @@ def build_ics(booking: Booking, *, cancel_url: str, cancelled: bool = False, seq
             ]
     lines += ["END:VEVENT", "END:VCALENDAR"]
     return "\r\n".join(_fold(line) for line in lines) + "\r\n"
+
+
+def build_feed(staff, bookings, *, show_customer_name: bool) -> str:
+    """担当者の予約を配信するカレンダー（CAL-06、07）。時間・メニュー・「予約あり」だけを載せ、連絡先は載せない。"""
+    store = staff.tenant
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//yoyakuru//staff-feed//JA",
+        "CALSCALE:GREGORIAN",
+        f"X-WR-CALNAME:{_escape(f'{store.name}（{staff.display_name}）')}",
+        "X-WR-TIMEZONE:Asia/Tokyo",
+    ]
+    stamp = _utc(datetime.now(UTC))
+    for b in bookings:
+        summary = f"予約あり：{b.service.name}"
+        if show_customer_name:
+            summary += f"（{b.customer_name}様）"
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:booking-{b.pk}@yoyakuru",
+            f"DTSTAMP:{stamp}",
+            f"DTSTART:{_utc(b.starts_at)}",
+            f"DTEND:{_utc(b.ends_at)}",
+            f"SUMMARY:{_escape(summary)}",
+            "TRANSP:OPAQUE",
+            "END:VEVENT",
+        ]
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(_fold(line) for line in lines) + "\r\n"
