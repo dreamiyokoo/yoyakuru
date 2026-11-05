@@ -6,6 +6,7 @@ import { adminApi } from "@/lib/adminApi";
 import { addDays, formatDateKey, toDateKey } from "@/lib/format";
 import { Notice } from "../ui/Notice";
 import { AdminShell, STATUS_LABEL } from "./AdminShell";
+import { CalendarFeed } from "./CalendarFeed";
 import { useLoad } from "./useLoad";
 
 const START_HOUR = 9;
@@ -117,6 +118,7 @@ function Day({ sub, date, setDate, today }: { sub: string; date: string; setDate
         </div>
       ) : null}
       <p className="text-xs text-sub">状態は色と文字で表示します（確定／仮押さえ／休憩／予約不可）。</p>
+      <CalendarFeed sub={sub} />
     </>
   );
 }

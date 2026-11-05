@@ -126,6 +126,7 @@ class StoreSerializer(serializers.ModelSerializer):
             "phone",
             "address",
             "guide",
+            "calendar_shows_customer_name",
             "slot_interval_minutes",
             "booking_window_days",
             "same_day_cutoff_minutes",

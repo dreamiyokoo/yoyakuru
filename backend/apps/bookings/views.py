@@ -1,8 +1,11 @@
+from datetime import timedelta
+
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -12,7 +15,7 @@ from apps.tenants.models import Tenant
 
 from . import chat, emails
 from .availability import available_slots, store_tz
-from .ics import build_ics
+from .ics import CalendarRenderer, build_feed, build_ics
 from .models import Booking, BookingStatus, Channel
 from .serializers import (
     AvailabilityQuerySerializer,
@@ -170,6 +173,7 @@ class IcsView(PublicView):
     """確定した予約の予定ファイル（REMIND-01「カレンダーに追加」）。"""
 
     throttle_scope = "public_token"
+    renderer_classes = [JSONRenderer, CalendarRenderer]
 
     def get(self, request, token):
         booking = get_object_or_404(Booking.objects.select_related("tenant", "service", "staff"), token=token)
@@ -215,3 +219,30 @@ class ChatView(PublicView):
                 "chat_token": chat.issue_token(store),
             }
         )
+
+
+class StaffFeedView(PublicView):
+    """担当者ごとの読み取り専用カレンダー（CAL-06）。URLのトークンだけで認証する。"""
+
+    throttle_scope = "public_token"
+    renderer_classes = [JSONRenderer, CalendarRenderer]
+
+    def get(self, request, token):
+        staff = (
+            Staff.objects.filter(calendar_token=token, is_active=True, tenant__is_active=True)
+            .select_related("tenant")
+            .first()
+        )
+        if not token or staff is None:
+            raise Http404
+        since = timezone.now() - timedelta(days=30)
+        bookings = (
+            Booking.objects.for_tenant(staff.tenant)
+            .filter(staff=staff, status=BookingStatus.CONFIRMED, ends_at__gte=since)
+            .select_related("service")
+            .order_by("starts_at")
+        )
+        body = build_feed(staff, bookings, show_customer_name=staff.tenant.calendar_shows_customer_name)
+        response = HttpResponse(body, content_type="text/calendar; charset=utf-8")
+        response["Cache-Control"] = "private, max-age=300"
+        return response

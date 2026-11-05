@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, time, timedelta
 
 from django.db.models import Q
@@ -266,3 +267,35 @@ class TimeOffDetailView(TenantAdminView):
         self.own_staff_or_403(time_off.staff)
         time_off.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CalendarFeedView(TenantAdminView):
+    """自分（ログインしている担当者）のカレンダー配信URLの確認・発行・停止（CAL-06）。"""
+
+    def _staff(self) -> Staff:
+        if not self.membership.staff_id:
+            raise PermissionDenied("担当者として登録されていないため、カレンダー配信はありません")
+        return self.membership.staff
+
+    def _body(self, staff: Staff) -> dict:
+        token = staff.calendar_token
+        return {
+            "path": f"/api/v1/public/calendar/{token}.ics" if token else None,
+            "shows_customer_name": self.tenant.calendar_shows_customer_name,
+        }
+
+    def get(self, request, subdomain):
+        return Response(self._body(self._staff()))
+
+    def post(self, request, subdomain):
+        """発行・再発行。再発行すると古いURLは使えなくなる。"""
+        staff = self._staff()
+        staff.calendar_token = secrets.token_urlsafe(32)
+        staff.save(update_fields=["calendar_token"])
+        return Response(self._body(staff))
+
+    def delete(self, request, subdomain):
+        staff = self._staff()
+        staff.calendar_token = None
+        staff.save(update_fields=["calendar_token"])
+        return Response(self._body(staff))

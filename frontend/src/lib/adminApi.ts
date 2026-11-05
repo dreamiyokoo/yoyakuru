@@ -22,6 +22,11 @@ const base = (sub: string) => `/api/v1/admin/tenants/${encodeURIComponent(sub)}`
 const qs = (params: Record<string, string | number | undefined | null>) =>
   new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "") as [string, string][]).toString();
 
+export interface CalendarFeed {
+  path: string | null;
+  shows_customer_name: boolean;
+}
+
 export interface Applied<T> {
   applied: boolean;
   result: T;
@@ -46,6 +51,10 @@ export const adminApi = {
   timeOffs: (sub: string, from?: string) => request<TimeOff[]>(`${base(sub)}/time-offs?${qs({ from })}`),
   createTimeOff: (sub: string, body: Record<string, unknown>) => mutate<TimeOff>(`${base(sub)}/time-offs`, "POST", body),
   deleteTimeOff: (sub: string, id: number) => mutate(`${base(sub)}/time-offs/${id}`, "DELETE"),
+  /** 自分のカレンダー配信URL（CAL-06）。発行・再発行・停止。 */
+  calendarFeed: (sub: string) => request<CalendarFeed>(`${base(sub)}/calendar-feed`),
+  issueCalendarFeed: (sub: string) => mutate<CalendarFeed>(`${base(sub)}/calendar-feed`, "POST"),
+  stopCalendarFeed: (sub: string) => mutate<CalendarFeed>(`${base(sub)}/calendar-feed`, "DELETE"),
   /** 設定の読み込み（オーナーのみ）。 */
   setting: <T>(sub: string, path: string) => request<T>(`${base(sub)}/settings/${path}`),
   /** 店舗の様子から設定案を作る（保存はしない）。 */

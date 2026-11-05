@@ -37,6 +37,13 @@ test("スタッフは自分の列と自分の休みだけを扱える", async ({
   await page.getByRole("link", { name: "カレンダー" }).click();
   await expect(page.getByRole("region", { name: "Bさん" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Aさん" })).toHaveCount(0);
+  // 自分の予約を配信するカレンダーURLを発行し、取り込めることを確かめる
+  const feed = page.getByRole("region", { name: "カレンダーアプリに表示" });
+  await feed.getByRole("button", { name: /URLを(発行|再発行)/ }).first().click();
+  const url = await feed.getByLabel("カレンダーのURL").inputValue();
+  const ics = await page.request.get(url.replace("app.localhost", "localhost"));
+  expect(ics.headers()["content-type"]).toContain("text/calendar");
+  expect(await ics.text()).toContain("X-WR-CALNAME:");
   await page.getByRole("link", { name: "休み" }).click();
   await expect(page.getByLabel("担当").locator("option")).toHaveText(["Bさん（自分）"]);
   await page.getByLabel("日付").fill(openDay());

@@ -4,7 +4,22 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from rest_framework.renderers import BaseRenderer
+
 from .models import Booking
+
+
+class CalendarRenderer(BaseRenderer):
+    """Accept: text/calendar を受け付けるための描画。カレンダーアプリが406で断られないようにする。"""
+
+    media_type = "text/calendar"
+    format = "ics"
+    charset = "utf-8"
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        if isinstance(data, dict):  # エラーの応答（見つからない等）
+            return str(data.get("detail", "")).encode()
+        return data.encode() if isinstance(data, str) else data
 
 
 def _escape(text: str) -> str:
@@ -58,4 +73,34 @@ def build_ics(booking: Booking, *, cancel_url: str, cancelled: bool = False, seq
                 "END:VALARM",
             ]
     lines += ["END:VEVENT", "END:VCALENDAR"]
+    return "\r\n".join(_fold(line) for line in lines) + "\r\n"
+
+
+def build_feed(staff, bookings, *, show_customer_name: bool) -> str:
+    """担当者の予約を配信するカレンダー（CAL-06、07）。時間・メニュー・「予約あり」だけを載せ、連絡先は載せない。"""
+    store = staff.tenant
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//yoyakuru//staff-feed//JA",
+        "CALSCALE:GREGORIAN",
+        f"X-WR-CALNAME:{_escape(f'{store.name}（{staff.display_name}）')}",
+        "X-WR-TIMEZONE:Asia/Tokyo",
+    ]
+    stamp = _utc(datetime.now(UTC))
+    for b in bookings:
+        summary = f"予約あり：{b.service.name}"
+        if show_customer_name:
+            summary += f"（{b.customer_name}様）"
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:booking-{b.pk}@yoyakuru",
+            f"DTSTAMP:{stamp}",
+            f"DTSTART:{_utc(b.starts_at)}",
+            f"DTEND:{_utc(b.ends_at)}",
+            f"SUMMARY:{_escape(summary)}",
+            "TRANSP:OPAQUE",
+            "END:VEVENT",
+        ]
+    lines.append("END:VCALENDAR")
     return "\r\n".join(_fold(line) for line in lines) + "\r\n"
