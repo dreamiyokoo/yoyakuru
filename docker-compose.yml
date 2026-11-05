@@ -1,0 +1,85 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-yoyakuru}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_NAME:-yoyakuru_dev}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-yoyakuru}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    command: sh -c "python manage.py migrate_schemas --shared && python manage.py setup_tenants --create-superuser && python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ${HOST_WORKSPACE:-.}/backend:/app
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-yoyakuru}
+      DB_PASSWORD: ${DB_PASSWORD:?}
+      DB_NAME: ${DB_NAME:-yoyakuru_dev}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+      DJANGO_SUPERUSER_PASSWORD: ${DJANGO_SUPERUSER_PASSWORD:-}
+      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-dreami.blog}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost', 8000)); s.close()",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    command: sh -c "rm -f .next/dev/lock && npm run dev"
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ${HOST_WORKSPACE:-.}/frontend:/app
+      - /app/node_modules
+    environment:
+      BACKEND_INTERNAL_URL: http://backend:8000
+      NEXT_PUBLIC_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-dreami.blog}
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # docker compose --profile tunnel up で起動（cloudflared/ に credentials が必要）
+  tunnel:
+    image: cloudflare/cloudflared:2024.8.3
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.dev.yml run
+    volumes:
+      - ${HOST_WORKSPACE:-.}/cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - frontend
+
+volumes:
+  postgres_data:

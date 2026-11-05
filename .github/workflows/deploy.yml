@@ -1,0 +1,39 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+# 同時に複数回デプロイしない
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy – docker compose up --build
+    runs-on: self-hosted
+
+    steps:
+      - name: Pull latest code
+        working-directory: /home/yokoo/www/yoyakuru
+        run: git pull --ff-only origin main
+
+      - name: Build and restart containers
+        working-directory: /home/yokoo/www/yoyakuru
+        run: docker compose --profile tunnel up -d --build --remove-orphans
+
+      - name: Verify containers are running
+        working-directory: /home/yokoo/www/yoyakuru
+        run: |
+          docker compose --profile tunnel ps
+          docker compose --profile tunnel ps --format json | python3 -c "
+          import sys, json
+          services = [json.loads(l) for l in sys.stdin if l.strip()]
+          failed = [s['Name'] for s in services if s.get('State') != 'running']
+          if failed:
+              print('FAILED:', failed)
+              sys.exit(1)
+          print('All containers running.')
+          "

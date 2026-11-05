@@ -1,0 +1,15 @@
+tunnel: 40d9d9de-1aeb-4476-b0c4-956044002aa0
+credentials-file: /etc/cloudflared/40d9d9de-1aeb-4476-b0c4-956044002aa0.json
+ingress:
+  # プラットフォーム管理 admin（Django 直接）
+  - hostname: "admin.dreami.blog"
+    service: http://backend:8000
+
+  # ワイルドカードは具体的なホスト名より後に配置する必要がある
+  - hostname: "*.dreami.blog"
+    service: http://frontend:3000
+
+  - hostname: "dreami.blog"
+    service: http://frontend:3000
+
+  - service: http_status:404
