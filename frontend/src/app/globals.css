@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* デザインシステム（design-system/yoyakuru）のトークン */
+@theme {
+  --color-primary: #0891b2;
+  --color-button: #0e7490;
+  --color-button-hover: #155e75;
+  --color-accent: #059669;
+  --color-surface: #ecfeff;
+  --color-card: #ffffff;
+  --color-ink: #164e63;
+  --color-sub: #475569;
+  --color-line: #a5f3fc;
+  --color-muted: #e8f1f6;
+  --color-danger: #b91c1c;
+  --font-sans: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  --font-display: "Zen Kaku Gothic New", "Noto Sans JP", "Hiragino Sans", sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-card);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

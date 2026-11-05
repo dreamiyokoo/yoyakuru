@@ -28,6 +28,8 @@ INSTALLED_APPS = [
     "rest_framework",
     "apps.core",
     "apps.tenants",
+    "apps.stores",
+    "apps.bookings",
 ]
 
 MIDDLEWARE = [
@@ -80,7 +82,18 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # お客様向けAPIの呼び出し回数の上限（CUST-07、SCALE-05）
+    "DEFAULT_THROTTLE_RATES": {
+        "public_read": os.environ.get("THROTTLE_PUBLIC_READ", "120/min"),
+        "public_hold": os.environ.get("THROTTLE_PUBLIC_HOLD", "10/hour"),
+        "public_token": os.environ.get("THROTTLE_PUBLIC_TOKEN", "30/min"),
+    },
 }
+
+# お客様へのメールに載せる予約ページのURL（店舗のサブドメイン）
+PUBLIC_BOOKING_URL_TEMPLATE = os.environ.get(
+    "PUBLIC_BOOKING_URL_TEMPLATE", "https://{subdomain}." + TENANT_BASE_DOMAIN
+)
 
 # セッションCookieは発行したホスト限定とし、親ドメインには発行しない（TENANT-03）
 SESSION_COOKIE_DOMAIN = None

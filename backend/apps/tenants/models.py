@@ -21,6 +21,18 @@ class Tenant(models.Model):
     subdomain = models.SlugField(unique=True, validators=[validate_subdomain])
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    # 公開ページに出す連絡先
+    phone = models.CharField("電話番号", max_length=20, blank=True)
+    address = models.CharField("住所", max_length=200, blank=True)
+    timezone = models.CharField("タイムゾーン", max_length=50, default="Asia/Tokyo")
+    # 予約の受付ルール（TIME-03〜05、CUST-05、MENU-03）
+    slot_interval_minutes = models.PositiveSmallIntegerField("開始時刻の刻み（分）", default=30)
+    booking_window_days = models.PositiveSmallIntegerField("何日先まで受け付けるか", default=60)
+    same_day_cutoff_minutes = models.PositiveIntegerField("受付の締切（開始の何分前）", default=120)
+    cancel_deadline_days = models.PositiveSmallIntegerField(
+        "取消の締切（予約日の何日前の終わりまで）", default=1, help_text="0なら開始時刻まで"
+    )
+    default_buffer_minutes = models.PositiveSmallIntegerField("準備時間の既定値（分）", default=0)
 
     class Meta:
         verbose_name = "店舗"

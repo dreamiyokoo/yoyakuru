@@ -1,36 +1,34 @@
-import { headers } from "next/headers";
-import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { BookingWizard } from "@/components/booking/BookingWizard";
+import { currentSite, loadStore } from "@/lib/site";
 
-const BACKEND_INTERNAL_URL =
-  process.env.BACKEND_INTERNAL_URL ?? "http://localhost:8000";
+export const dynamic = "force-dynamic";
 
-type PublicTenant = { name: string; subdomain: string };
-
-async function fetchTenant(subdomain: string): Promise<PublicTenant | null> {
-  const res = await fetch(
-    `${BACKEND_INTERNAL_URL}/api/v1/public/tenants/${encodeURIComponent(subdomain)}/`,
-    { cache: "no-store" },
-  );
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    throw new Error(`backend returned ${res.status} for tenant ${subdomain}`);
+export async function generateMetadata(): Promise<Metadata> {
+  const { site, subdomain } = await currentSite();
+  if (site === "tenant" && subdomain) {
+    const store = await loadStore(subdomain);
+    return { title: `${store.name} ご予約` };
   }
-  return res.json();
+  return {};
 }
 
 export default async function Home() {
-  const h = await headers();
-  const site = h.get("x-site");
+  const { site, subdomain } = await currentSite();
 
   if (site === "app") {
-    return <h1>ヨヤクル 管理画面</h1>;
+    return <h1 className="p-8 text-xl font-bold">ヨヤクル 管理画面</h1>;
   }
 
-  if (site === "tenant") {
-    const tenant = await fetchTenant(h.get("x-tenant-subdomain") ?? "");
-    if (!tenant) notFound();
-    return <h1>{tenant.name} のご予約</h1>;
+  if (site === "tenant" && subdomain) {
+    const store = await loadStore(subdomain);
+    return <BookingWizard store={store} />;
   }
 
-  return <h1>Hello, ヨヤクル</h1>;
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-6">
+      <h1 className="font-display text-3xl font-bold text-button">ヨヤクル</h1>
+      <p className="text-sub">電話もチャットも、AIが予約受付。</p>
+    </main>
+  );
 }

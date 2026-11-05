@@ -1,0 +1,176 @@
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404
+from rest_framework import status
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
+
+from apps.stores.models import Service, Staff
+from apps.tenants.models import Tenant
+
+from . import emails
+from .availability import available_slots, store_tz
+from .ics import build_ics
+from .models import Booking, BookingStatus, Channel
+from .serializers import (
+    AvailabilityQuerySerializer,
+    HoldRequestSerializer,
+    PublicBookingSerializer,
+    PublicServiceSerializer,
+    PublicStaffSerializer,
+    TokenSerializer,
+)
+from .services import BookingError, cancel_by_token, cancel_deadline, confirm_by_token, create_booking
+
+
+class PublicView(APIView):
+    """お客様向けAPI。ログインは不要で、店舗の境界はURLの店舗名で決める。"""
+
+    authentication_classes: list = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "public_read"
+
+    def handle_exception(self, exc):
+        if isinstance(exc, BookingError):
+            return Response({"code": exc.code, "message": exc.message}, status=exc.status)
+        return super().handle_exception(exc)
+
+
+def _store(subdomain: str) -> Tenant:
+    """停止中・存在しない店舗は404（TENANT-02）。"""
+    return get_object_or_404(Tenant, subdomain=subdomain, is_active=True)
+
+
+class StoreView(PublicView):
+    """公開予約ページ用の店舗情報（サービス・担当者を含む）。"""
+
+    def get(self, request, subdomain):
+        store = _store(subdomain)
+        services = Service.objects.for_tenant(store).filter(is_active=True)
+        staff = Staff.objects.for_tenant(store).filter(is_active=True).prefetch_related("services")
+        return Response(
+            {
+                "subdomain": store.subdomain,
+                "name": store.name,
+                "phone": store.phone,
+                "address": store.address,
+                "slot_interval_minutes": store.slot_interval_minutes,
+                "booking_window_days": store.booking_window_days,
+                "services": PublicServiceSerializer(services, many=True).data,
+                "staff": PublicStaffSerializer(staff, many=True).data,
+            }
+        )
+
+
+class AvailabilityView(PublicView):
+    def get(self, request, subdomain):
+        store = _store(subdomain)
+        q = AvailabilityQuerySerializer(data=request.query_params)
+        q.is_valid(raise_exception=True)
+        service = get_object_or_404(Service, pk=q.validated_data["service"], tenant=store, is_active=True)
+        staff = None
+        if q.validated_data.get("staff"):
+            staff = get_object_or_404(Staff, pk=q.validated_data["staff"], tenant=store, is_active=True)
+        slots = available_slots(
+            store,
+            service,
+            q.validated_data["date"],
+            q.validated_data["customer_type"],
+            staff,
+            party_size=q.validated_data["party_size"],
+        )
+        tz = store_tz(store)
+        return Response(
+            {
+                "date": q.validated_data["date"],
+                "slots": [
+                    {
+                        "starts_at": s.starts_at.astimezone(tz),
+                        "ends_at": s.ends_at.astimezone(tz),
+                        "staff_ids": s.staff_ids,
+                    }
+                    for s in slots
+                ],
+            }
+        )
+
+
+class HoldView(PublicView):
+    throttle_scope = "public_hold"
+
+    def post(self, request, subdomain):
+        store = _store(subdomain)
+        data = HoldRequestSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        v = data.validated_data
+        service = get_object_or_404(Service, pk=v["service"], tenant=store, is_active=True)
+        staff = get_object_or_404(Staff, pk=v["staff"], tenant=store, is_active=True) if v.get("staff") else None
+        result = create_booking(
+            store,
+            service=service,
+            staff=staff,
+            starts_at=v["starts_at"],
+            customer_type=v["customer_type"],
+            customer_name=v["customer_name"],
+            customer_email=v["customer_email"],
+            customer_phone=v["customer_phone"],
+            note=v["note"],
+            party_size=v["party_size"],
+            idempotency_key=v.get("idempotency_key") or None,
+            channel=Channel.WEB,
+        )
+        if not result.replayed:
+            emails.send_hold_email(result.booking)
+        code = status.HTTP_200_OK if result.replayed else status.HTTP_201_CREATED
+        return Response(PublicBookingSerializer(result.booking).data, status=code)
+
+
+class ConfirmView(PublicView):
+    throttle_scope = "public_token"
+
+    def post(self, request):
+        data = TokenSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        before = Booking.objects.filter(token=data.validated_data["token"]).values_list("status", flat=True).first()
+        booking = confirm_by_token(data.validated_data["token"])
+        if before != booking.status:
+            emails.send_confirmed_email(booking)
+        return Response(PublicBookingSerializer(booking).data)
+
+
+class BookingByTokenView(PublicView):
+    throttle_scope = "public_token"
+
+    def get(self, request, token):
+        booking = get_object_or_404(Booking.objects.select_related("tenant", "service", "staff"), token=token)
+        body = PublicBookingSerializer(booking).data
+        body["cancel_deadline"] = cancel_deadline(booking)
+        return Response(body)
+
+
+class CancelView(PublicView):
+    throttle_scope = "public_token"
+
+    def post(self, request, token):
+        before = Booking.objects.filter(token=token).values_list("status", flat=True).first()
+        booking = cancel_by_token(token)
+        if before != booking.status:
+            emails.send_cancelled_email(booking)
+        return Response(PublicBookingSerializer(booking).data)
+
+
+class IcsView(PublicView):
+    """確定した予約の予定ファイル（REMIND-01「カレンダーに追加」）。"""
+
+    throttle_scope = "public_token"
+
+    def get(self, request, token):
+        booking = get_object_or_404(Booking.objects.select_related("tenant", "service", "staff"), token=token)
+        if booking.status != BookingStatus.CONFIRMED:
+            raise Http404
+        body = build_ics(booking, cancel_url=emails.booking_page_url(booking, "cancel"))
+        response = HttpResponse(body, content_type="text/calendar; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="yoyaku.ics"'
+        return response
