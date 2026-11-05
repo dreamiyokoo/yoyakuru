@@ -5,7 +5,8 @@
 | 資料 | 内容 |
 |---|---|
 | [要件定義 v0.2](requirements.md) | 最新の基準。1,980円の基本方針、予約表示・選択＋自由入力・電話、権限、本人確認と取消、Google同期方針、メニュー・休憩、技術構成・ホスティング、UI方針、受入条件 |
-| [ワイヤーフレーム（Figma）](https://www.figma.com/design/VxFDk2n8uEoyWK3Urk0DkC) | 33画面（お客様向け10画面、管理画面14画面、AI電話の管理画面4画面、初期セットアップ5画面）。スマホ基準のグレースケール。閲覧には権限が必要 |
+| [ワイヤーフレーム（Figma）](https://www.figma.com/design/VxFDk2n8uEoyWK3Urk0DkC) | 33画面（お客様向け10画面、管理画面14画面、AI電話の管理画面4画面、初期セットアップ5画面）はスマホ基準のグレースケール。LP（スマホ・PC）は配色付き。閲覧には権限が必要 |
+| [デザインシステム](../design-system/yoyakuru/MASTER.md) | UI UX Pro Maxで作成した配色・フォント・スタイル。LPの上書きルールは[landing.md](../design-system/yoyakuru/pages/landing.md) |
 | [事業方針](business-plan.md) | 打ち出し、販売対象、価格の方向性、撤退基準、販売経路、90日の進め方 |
 | [企画・要件](product-plan.md) | サービス構想、決定事項、MVP |
 | [伏見整体院 ヒアリングシート](fushimi-hearing.md) | 初号店の業務・予約の現状を確認する質問と、回答に応じて見直す要件 |
