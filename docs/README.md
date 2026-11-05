@@ -9,6 +9,7 @@
 | [伏見整体院 ヒアリングシート](fushimi-hearing.md) | 初号店の業務・予約の現状を確認する質問と、回答に応じて見直す要件 |
 | [伏見整体院向け企画書](fushimi-proposal.md) | 初号店への実証導入案。料金・期間は未確定 |
 | [音声・予約アーキテクチャ](architecture.md) | OpenAI音声APIと電話回線、予約処理の役割 |
+| [競合分析・機能比較](competitor-analysis.md) | 予約システム型・AI電話型の料金と機能の比較、ヨヤクルの差別化ポイントと弱み |
 | [競合比較](competitor-review.md) | Amanesysの掲載内容と比較観点 |
 | [原価・料金検討](costs.md) | 従来構成の試算、直接音声API構成の未検証点 |
 | [検証と開発手順](validation-plan.md) | 技術検証、導入条件、開発の順序 |
