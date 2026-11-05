@@ -1,12 +1,18 @@
-"""開発・E2Eテスト用のデモ店舗（伏見整体院）を作る。本番では使わない。"""
+"""開発・E2Eテスト用のデモ店舗（伏見整体院）を作る。本番では使わない。
 
+DEMO_USER_PASSWORD を設定すると、ログイン用のオーナー（owner@fushimi.example、Aさん）と
+スタッフ（staff@fushimi.example、Bさん）も作る。未設定ならユーザーは作らない。
+"""
+
+import os
 from datetime import time
 
+from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.bookings.models import Booking
-from apps.stores.models import BusinessHours, RecurringBreak, Resource, Service, Staff, WeeklyShift
+from apps.stores.models import BusinessHours, Membership, RecurringBreak, Resource, Role, Service, Staff, WeeklyShift
 from apps.tenants.models import Tenant
 
 SUBDOMAIN = "fushimi"
@@ -59,4 +65,15 @@ class Command(BaseCommand):
         ]
         for service in services:
             service.staff.set(staff)
+        password = os.environ.get("DEMO_USER_PASSWORD")
+        if password:
+            users = get_user_model().objects
+            for email, role, member in (
+                ("owner@fushimi.example", Role.OWNER, staff[0]),
+                ("staff@fushimi.example", Role.STAFF, staff[1]),
+            ):
+                user = users.filter(username=email).first() or users.create_user(username=email, email=email)
+                user.set_password(password)
+                user.save()
+                Membership.objects.create(tenant=store, user=user, role=role, staff=member)
         self.stdout.write("created")

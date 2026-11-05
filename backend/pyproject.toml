@@ -14,7 +14,7 @@ addopts = "-q"
 [tool.coverage.run]
 branch = true
 source = ["apps"]
-omit = ["*/migrations/*", "apps/core/*"]
+omit = ["*/migrations/*", "apps/core/tasks.py"]
 
 [tool.coverage.report]
 show_missing = true

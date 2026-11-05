@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  LINT_PATHS: apps/stores apps/bookings tests config/settings/test.py config/settings/e2e.py
+  LINT_PATHS: apps/stores apps/bookings apps/core tests config/settings/test.py config/settings/e2e.py
 
 jobs:
   backend:

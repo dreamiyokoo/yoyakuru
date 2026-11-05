@@ -12,6 +12,17 @@
 | `/confirm?token=` | 確認メールのリンク。確定（カレンダーに追加）または期限切れ |
 | `/cancel?token=` | 予約の取消。締切後は店舗の電話番号を案内 |
 
+`app.{NEXT_PUBLIC_BASE_DOMAIN}` は店舗利用者の管理画面（他のホストでは404）。
+
+| `app.` のパス | 画面 |
+|---|---|
+| `/login` | ログイン |
+| `/bookings` | 予約一覧（今日・明日・今週） |
+| `/bookings/new` | 予約の手入力 |
+| `/bookings/{id}` | 予約の詳細、取消、日時・担当の変更（オーナーのみ） |
+| `/calendar` | 日表示のカレンダー（担当者ごとの列） |
+| `/time-off` | 休み・予約不可時間 |
+
 `/api/*` は `BACKEND_INTERNAL_URL` のDjangoへ中継する。
 
 ## 開発

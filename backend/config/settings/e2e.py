@@ -10,7 +10,13 @@ from .development import *  # noqa: E402, F401, F403
 EMAIL_BACKEND = "django.core.mail.backends.filebased.EmailBackend"
 EMAIL_FILE_PATH = os.environ.get("E2E_MAIL_DIR", "/tmp/yoyakuru-e2e-mail")
 PUBLIC_BOOKING_URL_TEMPLATE = "http://{subdomain}.localhost:3000"
+CSRF_TRUSTED_ORIGINS = [*CSRF_TRUSTED_ORIGINS, "http://app.localhost:3000"]  # noqa: F405
 REST_FRAMEWORK = {
     **REST_FRAMEWORK,  # noqa: F405
-    "DEFAULT_THROTTLE_RATES": {"public_read": "10000/min", "public_hold": "10000/hour", "public_token": "10000/min"},
+    "DEFAULT_THROTTLE_RATES": {
+        "public_read": "10000/min",
+        "public_hold": "10000/hour",
+        "public_token": "10000/min",
+        "login": "10000/min",
+    },
 }

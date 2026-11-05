@@ -158,6 +158,57 @@ def cancel_by_token(token: str, now: datetime | None = None) -> Booking:
     return booking
 
 
+def cancel_by_store(booking: Booking, actor, now: datetime | None = None) -> Booking:
+    """店舗による取消。締切はなく、取消で枠はすぐに解放される。"""
+    now = now or timezone.now()
+    with transaction.atomic():
+        locked = Booking.objects.select_for_update().get(pk=booking.pk)
+        if locked.status == BookingStatus.CANCELLED:
+            return locked
+        if locked.status not in (BookingStatus.CONFIRMED, BookingStatus.HOLD):
+            raise BookingError("not_cancellable", "この予約は取消できません", 409)
+        locked.status = BookingStatus.CANCELLED
+        locked.cancelled_at = now
+        locked.save(update_fields=["status", "cancelled_at"])
+        _event(locked, "cancelled", Channel.ADMIN, actor)
+    return locked
+
+
+def reschedule_booking(
+    booking: Booking, *, starts_at: datetime, staff: Staff, actor, now: datetime | None = None
+) -> Booking:
+    """日時・担当の変更（ASSIGN-04）。通常の予約と同じ空き判定で再確認する。受付の締切は適用しない。"""
+    now = now or timezone.now()
+    with transaction.atomic():
+        Tenant.objects.select_for_update().get(pk=booking.tenant_id)
+        locked = Booking.objects.select_for_update().select_related("service", "tenant").get(pk=booking.pk)
+        if locked.status != BookingStatus.CONFIRMED:
+            raise BookingError("not_changeable", "確定した予約だけ変更できます", 409)
+        day = starts_at.astimezone(store_tz(locked.tenant)).date()
+        slots = available_slots(
+            locked.tenant,
+            locked.service,
+            day,
+            locked.customer_type,
+            staff,
+            now,
+            locked.party_size,
+            exclude_booking_id=locked.pk,
+            enforce_cutoff=False,
+        )
+        slot = next((s for s in slots if s.starts_at == starts_at), None)
+        if slot is None:
+            raise BookingError("slot_unavailable", "その日時・担当では空きがありません", 409)
+        before = {"starts_at": locked.starts_at.isoformat(), "staff_id": locked.staff_id}
+        locked.staff = staff
+        locked.starts_at, locked.ends_at = slot.starts_at, slot.ends_at
+        locked.occupied_from, locked.occupied_until = slot.occupied_from, slot.occupied_until
+        locked.auto_assigned = False
+        locked.save(update_fields=["staff", "starts_at", "ends_at", "occupied_from", "occupied_until", "auto_assigned"])
+        _event(locked, "rescheduled", Channel.ADMIN, actor, before=before)
+    return locked
+
+
 def expire_holds(now: datetime | None = None) -> int:
     """期限を過ぎた仮押さえを期限切れにする。空き判定は期限で除外するため、これは記録の整理。"""
     now = now or timezone.now()

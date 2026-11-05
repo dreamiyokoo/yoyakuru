@@ -87,6 +87,7 @@ REST_FRAMEWORK = {
         "public_read": os.environ.get("THROTTLE_PUBLIC_READ", "120/min"),
         "public_hold": os.environ.get("THROTTLE_PUBLIC_HOLD", "10/hour"),
         "public_token": os.environ.get("THROTTLE_PUBLIC_TOKEN", "30/min"),
+        "login": os.environ.get("THROTTLE_LOGIN", "10/min"),
     },
 }
 

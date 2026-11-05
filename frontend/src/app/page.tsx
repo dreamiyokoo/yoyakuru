@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { BookingWizard } from "@/components/booking/BookingWizard";
 import { currentSite, loadStore } from "@/lib/site";
 
@@ -16,9 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Home() {
   const { site, subdomain } = await currentSite();
 
-  if (site === "app") {
-    return <h1 className="p-8 text-xl font-bold">ヨヤクル 管理画面</h1>;
-  }
+  if (site === "app") redirect("/bookings");
 
   if (site === "tenant" && subdomain) {
     const store = await loadStore(subdomain);

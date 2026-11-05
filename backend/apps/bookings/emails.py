@@ -61,5 +61,29 @@ def send_cancelled_email(booking: Booking) -> None:
     cancel_url = booking_page_url(booking, "cancel")
     body = f"{booking.customer_name} 様\n\n次のご予約を取消しました。\n\n{_summary(booking)}"
     msg = EmailMessage(f"【{booking.tenant.name}】ご予約を取消しました", body, to=[booking.customer_email])
-    msg.attach("yoyaku.ics", build_ics(booking, cancel_url=cancel_url, cancelled=True, sequence=1), "text/calendar")
+    # 取消は、それまでのどの変更よりも新しい版にする（変更の回数＋1）
+    sequence = _revision(booking) + 1
+    msg.attach(
+        "yoyaku.ics", build_ics(booking, cancel_url=cancel_url, cancelled=True, sequence=sequence), "text/calendar"
+    )
+    msg.send()
+
+
+def _revision(booking: Booking) -> int:
+    """予定ファイルの版（SEQUENCE）。日時・担当を変更した回数。"""
+    return booking.events.filter(action="rescheduled").count()
+
+
+def send_changed_email(booking: Booking) -> None:
+    """店舗が日時・担当を変えたとき、お客様のカレンダーの予定も更新する（REMIND-04）。"""
+    if not booking.customer_email:
+        return
+    cancel_url = booking_page_url(booking, "cancel")
+    sequence = _revision(booking)
+    body = (
+        f"{booking.customer_name} 様\n\nご予約の内容を変更しました。\n\n{_summary(booking)}\n"
+        "添付の予定ファイルで、カレンダーの予定を更新できます。\n"
+    )
+    msg = EmailMessage(f"【{booking.tenant.name}】ご予約を変更しました", body, to=[booking.customer_email])
+    msg.attach("yoyaku.ics", build_ics(booking, cancel_url=cancel_url, sequence=sequence), "text/calendar")
     msg.send()

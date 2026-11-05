@@ -12,7 +12,7 @@ export class ApiError extends Error {
 
 const FALLBACK_MESSAGE = "通信に失敗しました。時間をおいて、もう一度お試しください。";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, {
@@ -24,7 +24,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const message = typeof body?.message === "string" ? body.message : FALLBACK_MESSAGE;
+    // 自前のエラーは message、Django REST framework の権限エラー等は detail に説明が入る
+    const message =
+      typeof body?.message === "string" ? body.message : typeof body?.detail === "string" ? body.detail : FALLBACK_MESSAGE;
     throw new ApiError(res.status, typeof body?.code === "string" ? body.code : "error", message);
   }
   return body as T;

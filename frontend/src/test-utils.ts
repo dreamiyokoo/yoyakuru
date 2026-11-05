@@ -32,6 +32,7 @@ export function mockFetch(handler: Handler) {
   const fn = vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, init });
     const { status = 200, body } = await handler(url, init);
+    if (status === 204) return new Response(null, { status });
     return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
   });
   vi.stubGlobal("fetch", fn);
