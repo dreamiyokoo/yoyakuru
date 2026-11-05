@@ -7,14 +7,22 @@ import type { ChatSuggestion, ChatTurn, CustomerType, Slot } from "@/lib/types";
 
 interface Props {
   slug: string;
-  context: { customer_type: CustomerType; service: number | null; staff: number | null };
+  context: Conditions;
   onSuggest: (s: ChatSuggestion) => void;
-  onSlot: (s: Slot) => void;
+  onSlot: (s: Slot, conditions: Conditions) => void;
   onToken: (token: string) => void;
+}
+
+export interface Conditions {
+  customer_type: CustomerType;
+  service: number | null;
+  staff: number | null;
 }
 
 interface Line extends ChatTurn {
   slots?: Slot[];
+  /** 空き枠を探した条件。あとで条件を変えても、この枠はこの条件で予約する */
+  conditions?: Conditions;
   phone?: string;
 }
 
@@ -39,7 +47,8 @@ export function ChatBox({ slug, context, onSuggest, onSlot, onToken }: Props) {
   const send = async () => {
     const message = text.trim();
     if (!message || busy) return;
-    const history = lines.map(({ role, content }) => ({ role, content }));
+    // 直近だけを、サーバーの上限（1件500文字）に収めて送る
+    const history = lines.slice(-6).map(({ role, content }) => ({ role, content: content.slice(0, 500) }));
     setLines([...lines, { role: "user", content: message }]);
     setText("");
     setBusy(true);
@@ -47,7 +56,11 @@ export function ChatBox({ slug, context, onSuggest, onSlot, onToken }: Props) {
       const res = await sendChat(slug, { message, history, context });
       if (res.chat_token) onToken(res.chat_token);
       if (res.suggestion) onSuggest(res.suggestion);
-      setLines((l) => [...l, { role: "assistant", content: res.reply, slots: res.suggestion?.slots, phone: res.handoff ? res.phone : undefined }]);
+      const sg = res.suggestion;
+      const conditions = sg
+        ? { customer_type: sg.customer_type ?? context.customer_type, service: sg.service ?? context.service, staff: sg.staff ?? context.staff }
+        : undefined;
+      setLines((l) => [...l, { role: "assistant", content: res.reply, slots: sg?.slots, conditions, phone: res.handoff ? res.phone : undefined }]);
     } catch (e) {
       setLines((l) => [...l, { role: "assistant", content: e instanceof ApiError ? e.message : "送信に失敗しました" }]);
     } finally {
@@ -70,7 +83,7 @@ export function ChatBox({ slug, context, onSuggest, onSlot, onToken }: Props) {
             {l.slots?.length ? (
               <div className="mt-1 flex flex-wrap gap-2">
                 {l.slots.map((s) => (
-                  <button key={s.starts_at} type="button" className="min-h-11 rounded-lg border border-button bg-card px-3 font-bold text-button" onClick={() => onSlot(s)}>
+                  <button key={s.starts_at} type="button" className="min-h-11 rounded-lg border border-button bg-card px-3 font-bold text-button" onClick={() => l.conditions && onSlot(s, l.conditions)}>
                     {formatDateTime(s.starts_at)}で進む
                   </button>
                 ))}

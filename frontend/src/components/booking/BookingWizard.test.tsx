@@ -207,4 +207,47 @@ describe("BookingWizard", () => {
     await user.click(screen.getByRole("button", { name: "送信" }));
     expect(await screen.findByText("しばらくしてからお試しください")).toBeInTheDocument();
   });
+
+  it("books a chat slot with the conditions it was found for, and trims history", async () => {
+    let n = 0;
+    const calls = mockFetch((url) => {
+      if (url.endsWith("/chat")) {
+        n += 1;
+        return {
+          body: {
+            reply: n === 1 ? "あ".repeat(600) : "ok",
+            handoff: false,
+            phone: "",
+            chat_token: "tok",
+            suggestion: n === 1 ? { customer_type: null, service: 2, staff: 11, date: "2026-11-12", slots: [slot("15:00", "2026-11-12")] } : null,
+          },
+        };
+      }
+      if (url.includes("availability")) return { body: { slots: [] } };
+      return { status: 201, body: {} };
+    });
+    const user = userEvent.setup();
+    render(<BookingWizard store={STORE} today={TODAY} newKey={() => "k"} />);
+    await user.click(screen.getByRole("button", { name: "ことばで質問・検索する" }));
+    await user.type(screen.getByLabelText("質問や希望"), "骨盤矯正");
+    await user.click(screen.getByRole("button", { name: "送信" }));
+    await screen.findByRole("button", { name: /15:00で進む/ });
+    // あとから条件を変えても、提示された枠はその条件で予約する
+    await user.click(screen.getByRole("button", { name: "戻る" }));
+    await user.click(screen.getByRole("button", { name: "戻る" }));
+    await user.click(screen.getByRole("radio", { name: "全身調整" }));
+    await user.type(screen.getByLabelText("質問や希望"), "ほか");
+    await user.click(screen.getByRole("button", { name: "送信" }));
+    await screen.findByText("ok");
+    const second = JSON.parse(String(calls.filter((c) => c.url.endsWith("/chat"))[1].init?.body));
+    expect(second.history[1].content).toHaveLength(500);
+    expect(second.context).toEqual({ customer_type: "repeat", service: 1, staff: null });
+    await user.click(screen.getByRole("button", { name: /15:00で進む/ }));
+    await user.type(screen.getByLabelText("お名前"), "山田");
+    await user.type(screen.getByLabelText("メールアドレス"), "y@example.com");
+    await user.click(screen.getByRole("button", { name: "確認へ" }));
+    await user.click(screen.getByRole("button", { name: "予約を送信する" }));
+    await screen.findByText("確認メールを送りました");
+    expect(JSON.parse(String(calls.at(-1)?.init?.body))).toMatchObject({ service: 2, staff: 11 });
+  });
 });

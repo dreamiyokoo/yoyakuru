@@ -213,3 +213,10 @@ def test_openai_provider_sends_schema_and_parses(monkeypatch):
     monkeypatch.setattr(chat.urllib.request, "urlopen", failing)
     with pytest.raises(ChatUnavailable):
         OpenAIProvider("sk-x", "m").answer("sys", [])
+
+
+def test_long_replies_fit_the_history_limit(monkeypatch, service):
+    use(monkeypatch, Scripted(AiAnswer(reply="あ" * 900)))
+    reply = post({"message": "?"}).json()["reply"]
+    assert len(reply) == 500
+    assert post({"message": "?", "history": [{"role": "assistant", "content": reply}]}).status_code == 200

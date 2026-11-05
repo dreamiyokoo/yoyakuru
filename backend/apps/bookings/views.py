@@ -181,6 +181,7 @@ class IcsView(PublicView):
         return response
 
 
+REPLY_MAX = 500  # 会話の履歴として送り返せる長さ（ChatTurnSerializer）にそろえる
 UNAVAILABLE = "自由入力のご質問には、いまお答えできません。選択肢からご予約いただくか、お店にお問い合わせください。"
 
 
@@ -207,7 +208,7 @@ class ChatView(PublicView):
         suggestion = chat.validate(store, answer, v["context"], now)
         return Response(
             {
-                "reply": answer.reply[:1000],
+                "reply": answer.reply[:REPLY_MAX],
                 "handoff": answer.handoff,
                 "phone": store.phone,
                 "suggestion": None if suggestion.empty() else suggestion.__dict__,

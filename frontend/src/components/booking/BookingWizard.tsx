@@ -9,7 +9,7 @@ import { ChoiceCard, Chip } from "../ui/Choice";
 import { Field } from "../ui/Field";
 import { Notice, Summary } from "../ui/Notice";
 import { Screen } from "../ui/Screen";
-import { ChatBox } from "./ChatBox";
+import { ChatBox, type Conditions } from "./ChatBox";
 
 type Step = "service" | "staff" | "datetime" | "info" | "confirm" | "sent";
 const STEP_NUMBER: Record<string, number> = { service: 1, staff: 2, datetime: 3, info: 4 };
@@ -113,7 +113,10 @@ export function BookingWizard({ store, today = toDateKey(new Date()), newKey = (
     else if (sg.service !== null) setStep("staff");
   };
 
-  const chooseChatSlot = (s: Slot) => {
+  const chooseChatSlot = (s: Slot, c: Conditions) => {
+    setCustomerType(c.customer_type);
+    setServiceId(c.service);
+    setStaffId(c.staff);
     setDate(s.starts_at.slice(0, 10));
     setWeekStart(s.starts_at.slice(0, 10));
     setSlot(s);
