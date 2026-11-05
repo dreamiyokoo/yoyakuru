@@ -13,3 +13,5 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 CELERY_TASK_ALWAYS_EAGER = True
 PUBLIC_BOOKING_URL_TEMPLATE = "https://{subdomain}.yoyakuru.test"
+OPENAI_API_KEY = ""  # テストで外部のAIを呼ばない
+CHAT_PROVIDER = ""

@@ -1,4 +1,4 @@
-import type { HoldRequest, PublicBooking, Slot, Store } from "./types";
+import type { ChatReply, ChatTurn, HoldRequest, PublicBooking, Slot, Store } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -65,4 +65,11 @@ export function cancelBooking(token: string): Promise<PublicBooking> {
 
 export function icsUrl(token: string): string {
   return `${PUBLIC}/bookings/${encodeURIComponent(token)}/ics`;
+}
+
+export function sendChat(
+  slug: string,
+  body: { message: string; history: ChatTurn[]; context: { customer_type: string; service: number | null; staff: number | null } },
+): Promise<ChatReply> {
+  return request(`${PUBLIC}/tenants/${encodeURIComponent(slug)}/chat`, { method: "POST", body: JSON.stringify(body) });
 }

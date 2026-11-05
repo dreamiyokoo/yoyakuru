@@ -80,3 +80,15 @@ test("無効なリンクと存在しない店舗を案内する", async ({ page 
   expect(res?.status()).toBe(404);
   await expect(page.getByText("ページが見つかりません")).toBeVisible();
 });
+
+test("自由入力の質問に店舗の案内で答え、ことばの希望から日時の選択へ進める", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "ことばで質問・検索する" }).click();
+  await page.getByLabel("質問や希望").fill("駐車場はありますか");
+  await page.getByRole("button", { name: "送信" }).click();
+  await expect(page.getByText("駐車場は店舗の前に2台分あります。")).toBeVisible();
+  await page.getByLabel("質問や希望").fill("明日の全身調整をお願いします");
+  await page.getByRole("button", { name: "送信" }).click();
+  await expect(page.getByText("全身調整の空きをお探しします。")).toBeVisible();
+  await expect(page.getByRole("radiogroup", { name: "日付" })).toBeVisible();
+});

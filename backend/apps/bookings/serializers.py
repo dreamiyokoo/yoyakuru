@@ -50,6 +50,7 @@ class HoldRequestSerializer(serializers.Serializer):
     note = serializers.CharField(max_length=500, required=False, allow_blank=True, default="")
     party_size = serializers.IntegerField(required=False, min_value=1, max_value=20, default=1)
     idempotency_key = serializers.CharField(max_length=64, required=False, allow_blank=True)
+    chat_token = serializers.CharField(max_length=200, required=False, allow_blank=True)
 
 
 class TokenSerializer(serializers.Serializer):
@@ -78,3 +79,23 @@ class PublicBookingSerializer(serializers.ModelSerializer):
             "customer_name",
             "auto_assigned",
         ]
+
+
+class ChatTurnSerializer(serializers.Serializer):
+    role = serializers.ChoiceField(choices=["user", "assistant"])
+    content = serializers.CharField(max_length=500)
+
+
+class ChatContextSerializer(serializers.Serializer):
+    customer_type = serializers.ChoiceField(choices=CustomerType.choices, required=False)
+    service = serializers.IntegerField(required=False, allow_null=True)
+    staff = serializers.IntegerField(required=False, allow_null=True)
+
+
+class ChatRequestSerializer(serializers.Serializer):
+    message = serializers.CharField(max_length=300)
+    history = ChatTurnSerializer(many=True, required=False, default=list)
+    context = ChatContextSerializer(required=False, default=dict)
+
+    def validate_history(self, value):
+        return value[-6:]  # 長い会話ほど原価が上がるため、直近だけを送る（USAGE-04）

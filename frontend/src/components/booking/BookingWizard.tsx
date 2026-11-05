@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, createHold, fetchAvailability } from "@/lib/api";
 import { addDays, formatDateKey, formatDateTime, formatPrice, formatTime, toDateKey, weekdayOf } from "@/lib/format";
-import type { CustomerType, Slot, Store } from "@/lib/types";
+import type { ChatSuggestion, CustomerType, Slot, Store } from "@/lib/types";
 import { Button } from "../ui/Button";
 import { ChoiceCard, Chip } from "../ui/Choice";
 import { Field } from "../ui/Field";
 import { Notice, Summary } from "../ui/Notice";
 import { Screen } from "../ui/Screen";
+import { ChatBox, type Conditions } from "./ChatBox";
 
 type Step = "service" | "staff" | "datetime" | "info" | "confirm" | "sent";
 const STEP_NUMBER: Record<string, number> = { service: 1, staff: 2, datetime: 3, info: 4 };
@@ -34,6 +35,7 @@ export function BookingWizard({ store, today = toDateKey(new Date()), newKey = (
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [taken, setTaken] = useState<Slot[] | null>(null);
+  const [chatToken, setChatToken] = useState("");
   // 同じ予約内容の再送では同じキーを使い、サーバー側で二重に仮押さえしない
   const idempotency = useRef<{ intent: string; key: string } | null>(null);
 
@@ -69,6 +71,7 @@ export function BookingWizard({ store, today = toDateKey(new Date()), newKey = (
       customer_email: form.email.trim(),
       customer_phone: form.phone.trim(),
       note: form.note.trim(),
+      ...(chatToken ? { chat_token: chatToken } : {}),
     };
     const intent = JSON.stringify(request);
     if (idempotency.current?.intent !== intent) idempotency.current = { intent, key: newKey() };
@@ -90,6 +93,34 @@ export function BookingWizard({ store, today = toDateKey(new Date()), newKey = (
     } finally {
       setSubmitting(false);
     }
+  };
+
+  /** チャットの候補を、入力済みの条件に上書きして反映する。日時は一覧から選び直してもらう。 */
+  const applySuggestion = (sg: ChatSuggestion) => {
+    if (sg.customer_type) setCustomerType(sg.customer_type);
+    const nextService = sg.service ?? serviceId;
+    if (sg.service !== null && sg.service !== serviceId) {
+      setServiceId(sg.service);
+      setStaffId(null);
+    }
+    if (sg.staff !== null) setStaffId(sg.staff);
+    if (sg.date) {
+      setDate(sg.date);
+      setWeekStart(sg.date);
+    }
+    if (sg.service !== null || sg.staff !== null || sg.date) setSlot(null);
+    if (nextService !== null && sg.date) setStep("datetime");
+    else if (sg.service !== null) setStep("staff");
+  };
+
+  const chooseChatSlot = (s: Slot, c: Conditions) => {
+    setCustomerType(c.customer_type);
+    setServiceId(c.service);
+    setStaffId(c.staff);
+    setDate(s.starts_at.slice(0, 10));
+    setWeekStart(s.starts_at.slice(0, 10));
+    setSlot(s);
+    setStep("info");
   };
 
   const stepInfo = STEP_NUMBER[step] ? { current: STEP_NUMBER[step], total: 4, label: STEP_LABEL[step] } : undefined;
@@ -233,6 +264,16 @@ export function BookingWizard({ store, today = toDateKey(new Date()), newKey = (
           />
         </>
       )}
+
+      {step === "service" || step === "staff" || step === "datetime" ? (
+        <ChatBox
+          slug={store.subdomain}
+          context={{ customer_type: customerType, service: serviceId, staff: staffId }}
+          onSuggest={applySuggestion}
+          onSlot={chooseChatSlot}
+          onToken={setChatToken}
+        />
+      ) : null}
 
       {step === "confirm" && (
         <>

@@ -104,3 +104,13 @@ class BookingEvent(TenantOwnedModel):
 
     class Meta:
         ordering = ["created_at", "id"]
+
+
+class ChatUsage(TenantOwnedModel):
+    """店舗ごと・日ごとのチャットのAI利用回数。原価を守る上限に使う（USAGE-04）。"""
+
+    date = models.DateField()
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["tenant", "date"], name="chat_usage_per_day")]

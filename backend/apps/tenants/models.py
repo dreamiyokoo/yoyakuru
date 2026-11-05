@@ -9,9 +9,7 @@ RESERVED_SUBDOMAINS = {"www", "app", "api", "mcp", "admin", "mail", "static", "m
 
 def validate_subdomain(value: str) -> None:
     if not re.fullmatch(r"[a-z0-9][a-z0-9\-]{1,30}[a-z0-9]", value):
-        raise ValidationError(
-            "サブドメインは小文字英数字とハイフンのみ、3〜32文字（先頭・末尾はハイフン不可）"
-        )
+        raise ValidationError("サブドメインは小文字英数字とハイフンのみ、3〜32文字（先頭・末尾はハイフン不可）")
     if value in RESERVED_SUBDOMAINS:
         raise ValidationError(f"'{value}' は予約済みサブドメインのため使用できません")
 
@@ -33,6 +31,8 @@ class Tenant(models.Model):
         "取消の締切（予約日の何日前の終わりまで）", default=1, help_text="0なら開始時刻まで"
     )
     default_buffer_minutes = models.PositiveSmallIntegerField("準備時間の既定値（分）", default=0)
+    # チャットのAIが答えてよい店舗の案内（CHAT-05）。ここにない事項は断定しない
+    guide = models.TextField("お客様への案内", blank=True, help_text="アクセス・駐車場・支払い方法・持ち物など")
 
     class Meta:
         verbose_name = "店舗"

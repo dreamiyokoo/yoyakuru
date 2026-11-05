@@ -1,5 +1,6 @@
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -9,12 +10,13 @@ from rest_framework.views import APIView
 from apps.stores.models import Service, Staff
 from apps.tenants.models import Tenant
 
-from . import emails
+from . import chat, emails
 from .availability import available_slots, store_tz
 from .ics import build_ics
 from .models import Booking, BookingStatus, Channel
 from .serializers import (
     AvailabilityQuerySerializer,
+    ChatRequestSerializer,
     HoldRequestSerializer,
     PublicBookingSerializer,
     PublicServiceSerializer,
@@ -107,6 +109,7 @@ class HoldView(PublicView):
         v = data.validated_data
         service = get_object_or_404(Service, pk=v["service"], tenant=store, is_active=True)
         staff = get_object_or_404(Staff, pk=v["staff"], tenant=store, is_active=True) if v.get("staff") else None
+        from_chat = bool(v.get("chat_token")) and chat.token_is_valid(store, v["chat_token"])
         result = create_booking(
             store,
             service=service,
@@ -119,7 +122,9 @@ class HoldView(PublicView):
             note=v["note"],
             party_size=v["party_size"],
             idempotency_key=v.get("idempotency_key") or None,
-            channel=Channel.WEB,
+            # 自由入力をAIが処理した会話からの予約は、利用量の対象（USAGE-01）
+            channel=Channel.CHAT if from_chat else Channel.WEB,
+            ai_assisted=from_chat,
         )
         if not result.replayed:
             emails.send_hold_email(result.booking)
@@ -174,3 +179,39 @@ class IcsView(PublicView):
         response = HttpResponse(body, content_type="text/calendar; charset=utf-8")
         response["Content-Disposition"] = 'attachment; filename="yoyaku.ics"'
         return response
+
+
+REPLY_MAX = 500  # 会話の履歴として送り返せる長さ（ChatTurnSerializer）にそろえる
+UNAVAILABLE = "自由入力のご質問には、いまお答えできません。選択肢からご予約いただくか、お店にお問い合わせください。"
+
+
+class ChatView(PublicView):
+    """自由入力の質問・予約の希望を受ける（CHAT-03〜07）。予約の確定は通常の画面で行う。"""
+
+    throttle_scope = "public_chat"
+
+    def post(self, request, subdomain):
+        store = _store(subdomain)
+        data = ChatRequestSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        v = data.validated_data
+        now = timezone.now()
+        today = now.astimezone(store_tz(store)).date()
+        provider = chat.get_provider()
+        if provider is None or not chat.take_quota(store, today):
+            return Response({"reply": UNAVAILABLE, "handoff": True, "phone": store.phone, "suggestion": None})
+        messages = [*v["history"], {"role": "user", "content": v["message"]}]
+        try:
+            answer = provider.answer(chat.system_prompt(chat.store_facts(store, today)), messages)
+        except chat.ChatUnavailable:
+            return Response({"reply": UNAVAILABLE, "handoff": True, "phone": store.phone, "suggestion": None})
+        suggestion = chat.validate(store, answer, v["context"], now)
+        return Response(
+            {
+                "reply": answer.reply[:REPLY_MAX],
+                "handoff": answer.handoff,
+                "phone": store.phone,
+                "suggestion": None if suggestion.empty() else suggestion.__dict__,
+                "chat_token": chat.issue_token(store),
+            }
+        )
