@@ -5,6 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -14,7 +15,7 @@ from apps.tenants.models import Tenant
 
 from . import chat, emails
 from .availability import available_slots, store_tz
-from .ics import build_feed, build_ics
+from .ics import CalendarRenderer, build_feed, build_ics
 from .models import Booking, BookingStatus, Channel
 from .serializers import (
     AvailabilityQuerySerializer,
@@ -172,6 +173,7 @@ class IcsView(PublicView):
     """確定した予約の予定ファイル（REMIND-01「カレンダーに追加」）。"""
 
     throttle_scope = "public_token"
+    renderer_classes = [JSONRenderer, CalendarRenderer]
 
     def get(self, request, token):
         booking = get_object_or_404(Booking.objects.select_related("tenant", "service", "staff"), token=token)
@@ -223,6 +225,7 @@ class StaffFeedView(PublicView):
     """担当者ごとの読み取り専用カレンダー（CAL-06）。URLのトークンだけで認証する。"""
 
     throttle_scope = "public_token"
+    renderer_classes = [JSONRenderer, CalendarRenderer]
 
     def get(self, request, token):
         staff = (

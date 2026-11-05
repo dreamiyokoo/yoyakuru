@@ -69,3 +69,21 @@ def test_owner_can_change_the_name_setting(store, owner):
     assert r.status_code == 200
     store.refresh_from_db()
     assert store.calendar_shows_customer_name is True
+
+
+def test_calendar_clients_asking_for_text_calendar_are_served(store, staff, service, member):
+    path = client_for(member).post(FEED).json()["path"]
+    r = APIClient().get(path, HTTP_ACCEPT="text/calendar")
+    assert r.status_code == 200 and r.content.decode().startswith("BEGIN:VCALENDAR")
+    missing = APIClient().get("/api/v1/public/calendar/nope.ics", HTTP_ACCEPT="text/calendar")
+    assert missing.status_code == 404
+    b = book(service, staff[0], far(10))
+    ics = APIClient().get(f"/api/v1/public/bookings/{b.token}/ics", HTTP_ACCEPT="text/calendar")
+    assert ics.status_code == 200 and b"BEGIN:VEVENT" in ics.content
+
+
+def test_calendar_renderer_passes_text_through():
+    from apps.bookings.ics import CalendarRenderer
+
+    assert CalendarRenderer().render("BEGIN:VCALENDAR") == b"BEGIN:VCALENDAR"
+    assert CalendarRenderer().render({"detail": "見つかりません"}) == "見つかりません".encode()

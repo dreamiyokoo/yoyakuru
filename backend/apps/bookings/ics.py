@@ -4,7 +4,22 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from rest_framework.renderers import BaseRenderer
+
 from .models import Booking
+
+
+class CalendarRenderer(BaseRenderer):
+    """Accept: text/calendar を受け付けるための描画。カレンダーアプリが406で断られないようにする。"""
+
+    media_type = "text/calendar"
+    format = "ics"
+    charset = "utf-8"
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        if isinstance(data, dict):  # エラーの応答（見つからない等）
+            return str(data.get("detail", "")).encode()
+        return data.encode() if isinstance(data, str) else data
 
 
 def _escape(text: str) -> str:
