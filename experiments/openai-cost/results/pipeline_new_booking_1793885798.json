@@ -1,0 +1,10 @@
+{
+  "scenario": "new_booking",
+  "total_usd": 0.0110247,
+  "call_sec": 57.25,
+  "breakdown": {
+    "stt": 0.001005,
+    "llm": 0.0011415000000000002,
+    "tts": 0.0088782
+  }
+}

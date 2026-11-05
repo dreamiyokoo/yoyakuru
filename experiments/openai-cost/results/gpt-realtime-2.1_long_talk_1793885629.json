@@ -1,0 +1,114 @@
+{
+  "model": "gpt-realtime-2.1",
+  "scenario": "long_talk",
+  "total_usd": 0.0901096,
+  "customer_audio_sec": 88.45,
+  "ai_audio_sec": 35.0,
+  "call_sec": 123.45,
+  "turns": [
+    {
+      "turn": 0,
+      "usage": {
+        "total_tokens": 463,
+        "input_tokens": 292,
+        "output_tokens": 171,
+        "input_token_details": {
+          "text_tokens": 78,
+          "audio_tokens": 214,
+          "image_tokens": 0,
+          "cached_tokens": 0,
+          "cached_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 65,
+          "audio_tokens": 106,
+          "reasoning_tokens": 21
+        }
+      },
+      "usd": 0.015504,
+      "reply_sec": 5.3
+    },
+    {
+      "turn": 1,
+      "usage": {
+        "total_tokens": 931,
+        "input_tokens": 579,
+        "output_tokens": 352,
+        "input_token_details": {
+          "text_tokens": 120,
+          "audio_tokens": 459,
+          "image_tokens": 0,
+          "cached_tokens": 256,
+          "cached_tokens_details": {
+            "text_tokens": 64,
+            "audio_tokens": 192,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 162,
+          "audio_tokens": 190,
+          "reasoning_tokens": 94
+        }
+      },
+      "usd": 0.0249184,
+      "reply_sec": 9.5
+    },
+    {
+      "turn": 2,
+      "usage": {
+        "total_tokens": 1252,
+        "input_tokens": 891,
+        "output_tokens": 361,
+        "input_token_details": {
+          "text_tokens": 182,
+          "audio_tokens": 709,
+          "image_tokens": 0,
+          "cached_tokens": 512,
+          "cached_tokens_details": {
+            "text_tokens": 128,
+            "audio_tokens": 384,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 139,
+          "audio_tokens": 222,
+          "reasoning_tokens": 72
+        }
+      },
+      "usd": 0.028364800000000003,
+      "reply_sec": 11.1
+    },
+    {
+      "turn": 3,
+      "usage": {
+        "total_tokens": 1449,
+        "input_tokens": 1126,
+        "output_tokens": 323,
+        "input_token_details": {
+          "text_tokens": 243,
+          "audio_tokens": 883,
+          "image_tokens": 0,
+          "cached_tokens": 896,
+          "cached_tokens_details": {
+            "text_tokens": 192,
+            "audio_tokens": 704,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 141,
+          "audio_tokens": 182,
+          "reasoning_tokens": 78
+        }
+      },
+      "usd": 0.021322400000000002,
+      "reply_sec": 9.1
+    }
+  ]
+}

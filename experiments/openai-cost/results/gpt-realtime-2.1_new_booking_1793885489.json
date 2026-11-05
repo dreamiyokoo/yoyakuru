@@ -1,0 +1,114 @@
+{
+  "model": "gpt-realtime-2.1",
+  "scenario": "new_booking",
+  "total_usd": 0.0914712,
+  "customer_audio_sec": 51.849999999999994,
+  "ai_audio_sec": 39.0,
+  "call_sec": 90.85,
+  "turns": [
+    {
+      "turn": 0,
+      "usage": {
+        "total_tokens": 324,
+        "input_tokens": 143,
+        "output_tokens": 181,
+        "input_token_details": {
+          "text_tokens": 78,
+          "audio_tokens": 65,
+          "image_tokens": 0,
+          "cached_tokens": 0,
+          "cached_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 62,
+          "audio_tokens": 119,
+          "reasoning_tokens": 22
+        }
+      },
+      "usd": 0.011496,
+      "reply_sec": 5.95
+    },
+    {
+      "turn": 1,
+      "usage": {
+        "total_tokens": 542,
+        "input_tokens": 317,
+        "output_tokens": 225,
+        "input_token_details": {
+          "text_tokens": 116,
+          "audio_tokens": 201,
+          "image_tokens": 0,
+          "cached_tokens": 0,
+          "cached_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 100,
+          "audio_tokens": 125,
+          "reasoning_tokens": 53
+        }
+      },
+      "usd": 0.017296,
+      "reply_sec": 6.25
+    },
+    {
+      "turn": 2,
+      "usage": {
+        "total_tokens": 915,
+        "input_tokens": 494,
+        "output_tokens": 421,
+        "input_token_details": {
+          "text_tokens": 161,
+          "audio_tokens": 333,
+          "image_tokens": 0,
+          "cached_tokens": 128,
+          "cached_tokens_details": {
+            "text_tokens": 64,
+            "audio_tokens": 64,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 179,
+          "audio_tokens": 242,
+          "reasoning_tokens": 100
+        }
+      },
+      "usd": 0.0288312,
+      "reply_sec": 12.1
+    },
+    {
+      "turn": 3,
+      "usage": {
+        "total_tokens": 1213,
+        "input_tokens": 750,
+        "output_tokens": 463,
+        "input_token_details": {
+          "text_tokens": 232,
+          "audio_tokens": 518,
+          "image_tokens": 0,
+          "cached_tokens": 320,
+          "cached_tokens_details": {
+            "text_tokens": 128,
+            "audio_tokens": 192,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 169,
+          "audio_tokens": 294,
+          "reasoning_tokens": 83
+        }
+      },
+      "usd": 0.033848,
+      "reply_sec": 14.7
+    }
+  ]
+}

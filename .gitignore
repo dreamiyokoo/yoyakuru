@@ -29,3 +29,6 @@ cloudflared/*.json
 .DS_Store
 .idea/
 .vscode/
+
+# 検証用の生成音声
+experiments/*/audio/

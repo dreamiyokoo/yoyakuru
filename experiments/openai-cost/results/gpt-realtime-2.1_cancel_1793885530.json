@@ -1,0 +1,88 @@
+{
+  "model": "gpt-realtime-2.1",
+  "scenario": "cancel",
+  "total_usd": 0.060183200000000006,
+  "customer_audio_sec": 40.55,
+  "ai_audio_sec": 25.95,
+  "call_sec": 66.5,
+  "turns": [
+    {
+      "turn": 0,
+      "usage": {
+        "total_tokens": 343,
+        "input_tokens": 145,
+        "output_tokens": 198,
+        "input_token_details": {
+          "text_tokens": 78,
+          "audio_tokens": 67,
+          "image_tokens": 0,
+          "cached_tokens": 0,
+          "cached_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 76,
+          "audio_tokens": 122,
+          "reasoning_tokens": 37
+        }
+      },
+      "usd": 0.012088,
+      "reply_sec": 6.1
+    },
+    {
+      "turn": 1,
+      "usage": {
+        "total_tokens": 619,
+        "input_tokens": 335,
+        "output_tokens": 284,
+        "input_token_details": {
+          "text_tokens": 115,
+          "audio_tokens": 220,
+          "image_tokens": 0,
+          "cached_tokens": 128,
+          "cached_tokens_details": {
+            "text_tokens": 64,
+            "audio_tokens": 64,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 83,
+          "audio_tokens": 201,
+          "reasoning_tokens": 20
+        }
+      },
+      "usd": 0.0201032,
+      "reply_sec": 10.05
+    },
+    {
+      "turn": 2,
+      "usage": {
+        "total_tokens": 848,
+        "input_tokens": 577,
+        "output_tokens": 271,
+        "input_token_details": {
+          "text_tokens": 172,
+          "audio_tokens": 405,
+          "image_tokens": 0,
+          "cached_tokens": 0,
+          "cached_tokens_details": {
+            "text_tokens": 0,
+            "audio_tokens": 0,
+            "image_tokens": 0
+          }
+        },
+        "output_token_details": {
+          "text_tokens": 75,
+          "audio_tokens": 196,
+          "reasoning_tokens": 15
+        }
+      },
+      "usd": 0.027992,
+      "reply_sec": 9.8
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "scenario": "long_talk",
+  "total_usd": 0.0154784,
+  "call_sec": 100.5,
+  "breakdown": {
+    "stt": 0.00341,
+    "llm": 0.001833,
+    "tts": 0.0102354
+  }
+}
