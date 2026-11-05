@@ -101,7 +101,7 @@ def test_plan_becomes_steps_that_reuse_existing_items(monkeypatch, store, staff,
     assert r["available"] and r["reply"] == "案です"
     by = {s["label"]: s for s in r["steps"]}
     labels = list(by)
-    assert labels[0] == "予約ルール：開始時刻の刻み、お客様への案内"
+    assert labels[0] == "予約ルール：開始時刻の刻み 30分→15分、お客様への案内 （なし）→「駐車場あり」"
     assert by[labels[0]]["body"]["slot_interval_minutes"] == 15 and by[labels[0]]["body"]["name"] == "伏見整体院"
     assert by["営業時間：火 09:00〜18:00"]["body"] == [{"weekday": 1, "opens_at": "09:00", "closes_at": "18:00"}]
     assert by["設備「ベッド」を3に変更"]["path"] == f"resources/{beds.id}"
@@ -185,3 +185,29 @@ def test_fake_planner(store):
 @pytest.mark.parametrize("rules", [None, {k: None for k in setup_ai._rules(30)}])
 def test_empty_rules_make_no_step(store, rules):
     assert setup_ai.steps_for(store, plan(rules=rules)) == ([], [])
+
+
+def test_rule_labels_show_current_and_proposed_values(store):
+    store.guide = "あ" * 50
+    store.save()
+    rules = {
+        "slot_interval_minutes": None,
+        "booking_window_days": 90,
+        "same_day_cutoff_minutes": 1440,
+        "cancel_deadline_days": 0,
+        "default_buffer_minutes": 10,
+        "guide": "",
+    }
+    (step,), _ = setup_ai.steps_for(store, plan(rules=rules))
+    assert step["label"] == (
+        "予約ルール：受付期間 60日先まで→90日先まで、当日の締切 120分前→前日まで、取消の締切 1日前まで→開始時刻まで、"
+        f"準備時間 0分→10分、お客様への案内 「{'あ' * 40}…」→（なし）"
+    )
+    assert setup_ai._rule_value("same_day_cutoff_minutes", 0) == "締切なし"
+
+
+def test_long_conversations_are_trimmed_not_rejected(monkeypatch, store, owner):
+    p = use(monkeypatch, Planner(plan(reply="ok")))
+    history = [{"role": "user" if i % 2 == 0 else "assistant", "content": f"m{i}"} for i in range(30)]
+    r = client_for(owner).post(f"{S}/assistant", {"message": "続き", "history": history}, format="json")
+    assert r.status_code == 200 and len(p.calls[0][1]) == 9

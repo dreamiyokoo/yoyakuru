@@ -68,7 +68,7 @@ export function SetupTab({ sub, onChanged }: { sub: string; onChanged?: () => vo
     if (!message) return;
     setText("");
     void run(async () => {
-      const res = await adminApi.setupAssistant(sub, message, turns);
+      const res = await adminApi.setupAssistant(sub, message, turns.slice(-8)); // サーバーが使うのは直近8件
       setTurns([...turns, { role: "user", content: message }, { role: "assistant", content: res.reply }]);
       return res;
     });
@@ -125,10 +125,11 @@ function StepRunner({ sub, plan, onChanged }: { sub: string; plan: Plan; onChang
   const [index, setIndex] = useState(0);
   const [refs, setRefs] = useState<Record<string, number>>({});
   const [done, setDone] = useState<{ label: string; applied: boolean }[]>([]);
-  const { change, busy, ui } = useSettingChange(sub);
+  const { change, busy, ui, cancel } = useSettingChange(sub);
   const step = plan.steps[index];
 
   const next = (applied: boolean) => {
+    if (!applied) cancel(); // 確認待ちのまま飛ばした変更を、次の手順に持ち越さない
     setDone((d) => [...d, { label: step.label, applied }]);
     setIndex((i) => i + 1);
   };

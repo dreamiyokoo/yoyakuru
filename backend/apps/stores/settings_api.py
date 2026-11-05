@@ -502,7 +502,7 @@ class StaffExceptionDetailView(SettingsView):
 
 class SetupRequestSerializer(serializers.Serializer):
     message = serializers.CharField(max_length=1000)
-    history = serializers.ListField(child=serializers.DictField(), required=False, default=list, max_length=20)
+    history = serializers.ListField(child=serializers.DictField(), required=False, default=list)
 
     def validate_history(self, value):
         turns = []

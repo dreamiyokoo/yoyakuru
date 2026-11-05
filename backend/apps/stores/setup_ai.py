@@ -261,7 +261,10 @@ def steps_for(tenant: Tenant, plan: dict) -> tuple[list[dict], list[str]]:
                 "default_buffer_minutes": tenant.default_buffer_minutes,
                 **changes,
             }
-            label = "、".join(_RULE_LABELS.get(k, k) for k in changes)
+            label = "、".join(
+                f"{_RULE_LABELS[k]} {_rule_value(k, getattr(tenant, k))}→{_rule_value(k, v)}"
+                for k, v in changes.items()
+            )
             steps.append({"label": f"予約ルール：{label}", "path": "store", "method": "PUT", "body": body})
 
     if plan.get("hours") is not None:
@@ -369,6 +372,20 @@ def steps_for(tenant: Tenant, plan: dict) -> tuple[list[dict], list[str]]:
         steps.append({"label": label, "path": f"staff/{staff.id}/exceptions", "method": "POST", "body": body})
 
     return steps, notes
+
+
+def _rule_value(key: str, value) -> str:
+    """確認画面で、保存される値をそのまま読めるようにする。"""
+    if key == "guide":
+        text = str(value or "")
+        return f"「{text[:40]}{'…' if len(text) > 40 else ''}」" if text else "（なし）"
+    if key == "booking_window_days":
+        return f"{value}日先まで"
+    if key == "same_day_cutoff_minutes":
+        return {0: "締切なし", 1440: "前日まで"}.get(value, f"{value}分前")
+    if key == "cancel_deadline_days":
+        return "開始時刻まで" if value == 0 else f"{value}日前まで"
+    return f"{value}分"
 
 
 _RULE_LABELS = {

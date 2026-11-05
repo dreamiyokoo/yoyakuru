@@ -20,7 +20,9 @@ const STEPS = [
   { label: "営業時間：月 10:00〜20:00", path: "hours", method: "PUT", body: [{ weekday: 0, opens_at: "10:00", closes_at: "20:00" }] },
 ];
 
-function backend({ assistant = { available: true, reply: "案を作りました", steps: STEPS.slice(2), notes: ["担当者「Z」が見つかりません"] } } = {}) {
+const AFFECTED = { id: 7, starts_at: "2026-11-11T10:00:00+09:00", service_name: "全身調整", staff_name: "A", customer_name: "山田" };
+
+function backend({ assistant = { available: true, reply: "案を作りました", steps: STEPS.slice(2), notes: ["担当者「Z」が見つかりません"] }, affects = [] as string[] } = {}) {
   const writes: { path: string; body: unknown }[] = [];
   const calls = mockFetch((url, init) => {
     if (url.endsWith("/auth/me")) return { body: owner };
@@ -36,7 +38,7 @@ function backend({ assistant = { available: true, reply: "案を作りました"
     if (path === "staff" && !init?.method) return { body: [{ id: 10, display_name: "A", title: "", priority: 1, is_active: true }, { id: 11, display_name: "B", title: "", priority: 2, is_active: false }] };
     if (init?.method && init.method !== "GET") {
       if (query !== "1") writes.push({ path, body: JSON.parse(String(init.body)) });
-      return { body: { applied: query !== "1", result: path === "resources" ? { id: 77 } : {}, affected_bookings: [] } };
+      return { body: { applied: query !== "1", result: path === "resources" ? { id: 77 } : {}, affected_bookings: affects.includes(path) ? [AFFECTED] : [] } };
     }
     return { body: [] };
   });
@@ -99,5 +101,31 @@ describe("AI setup", () => {
     expect(screen.getByText("いまはAIで設定案を作れません。")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "汎用" }));
     expect(await screen.findByText("作れません")).toBeInTheDocument();
+  });
+
+  it("drops a pending confirmation when the step is skipped", async () => {
+    const be = backend({ affects: ["resources"] });
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "整体・治療院" }));
+    await userEvent.click(await screen.findByRole("button", { name: "反映する" }));
+    expect(await screen.findByRole("dialog", { name: "変更前の確認" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "スキップ" }));
+    expect(await screen.findByText("手順 2 / 3")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "変更前の確認" })).not.toBeInTheDocument();
+    expect(be.writes).toEqual([]);
+  });
+
+  it("sends only the recent part of a long conversation", async () => {
+    const be = backend();
+    renderPage();
+    for (let i = 0; i < 6; i++) {
+      await userEvent.type(await screen.findByLabelText("店舗の様子"), `m${i}`);
+      await userEvent.click(screen.getByRole("button", { name: "設定案を作る" }));
+      await waitFor(() => expect(be.calls.filter((c) => c.url.endsWith("/assistant"))).toHaveLength(i + 1));
+      await screen.findByRole("button", { name: "設定案を作る" });
+    }
+    const last = JSON.parse(String(be.calls.filter((c) => c.url.endsWith("/assistant"))[5].init?.body));
+    expect(last.history).toHaveLength(8);
+    expect(last.history[0].content).toBe("m1");
   });
 });
