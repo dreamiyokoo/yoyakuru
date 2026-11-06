@@ -24,3 +24,21 @@ class TwoFactor(models.Model):
     @property
     def enabled(self) -> bool:
         return self.confirmed_at is not None
+
+
+class Lead(models.Model):
+    """LP（サービス紹介ページ）からの先行導入の申し込み。"""
+
+    store_name = models.CharField("お店の名前", max_length=100)
+    name = models.CharField("お名前", max_length=100)
+    email = models.EmailField("メールアドレス")
+    phone = models.CharField("電話番号", max_length=20, blank=True)
+    industry = models.CharField("業種", max_length=50, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = verbose_name_plural = "先行導入の申し込み"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.store_name}（{self.name}）"
