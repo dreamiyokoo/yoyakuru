@@ -70,7 +70,16 @@ def owner(store, staff):
 
     u = user("owner@example.com")
     Membership.objects.create(tenant=store, user=u, role=Role.OWNER, staff=staff[0])
+    enable_two_factor(u)  # オーナーは二段階認証が必須（LOGIN-07）
     return u
+
+
+def enable_two_factor(u, secret="JBSWY3DPEHPK3PXP"):
+    from django.utils import timezone
+
+    from apps.core.models import TwoFactor
+
+    return TwoFactor.objects.create(user=u, secret=secret, confirmed_at=timezone.now())
 
 
 @pytest.fixture
@@ -80,3 +89,12 @@ def member(store, staff):
     u = user("staff@example.com")
     Membership.objects.create(tenant=store, user=u, role=Role.STAFF, staff=staff[1])
     return u
+
+
+@pytest.fixture(autouse=True)
+def _fresh_cache():
+    """回数制限（ログイン等）をテストごとに数え直す。"""
+    from django.core.cache import cache
+
+    cache.clear()
+    yield

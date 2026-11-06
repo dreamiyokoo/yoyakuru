@@ -55,7 +55,11 @@ export interface Applied<T> {
 
 export const adminApi = {
   me: () => request<Me>(`${AUTH}/me`),
-  login: (email: string, password: string) => mutate<Me>(`${AUTH}/login`, "POST", { email, password }),
+  /** パスワードが合っていて二段階認証が有効なら { two_factor_required: true } が返る。 */
+  login: (email: string, password: string) => mutate<Me | { two_factor_required: true }>(`${AUTH}/login`, "POST", { email, password }),
+  loginCode: (code: string) => mutate<Me>(`${AUTH}/login/code`, "POST", { code }),
+  setupTwoFactor: () => mutate<{ secret: string; uri: string; qr_svg: string }>(`${AUTH}/2fa/setup`, "POST"),
+  confirmTwoFactor: (code: string) => mutate<Me & { recovery_codes: string[] }>(`${AUTH}/2fa/confirm`, "POST", { code }),
   logout: () => mutate(`${AUTH}/logout`, "POST"),
   options: (sub: string) => request<Options>(`${base(sub)}/options`),
   bookings: (sub: string, dateFrom: string, dateTo: string, staff?: number | null) =>

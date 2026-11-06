@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 
 from apps.stores.models import Invitation, Membership, Role, Staff
 
-from .conftest import client_for, user
+from .conftest import client_for, enable_two_factor, user
 
 S = "/api/v1/admin/tenants/fushimi/settings"
 
@@ -49,7 +49,7 @@ def test_owner_invites_new_staff_who_creates_an_account(store, staff, owner):
     assert {x["email"] for x in listing["members"]} == {"owner@example.com", "new@example.com"}
 
 
-def test_existing_account_joins_with_its_password(store, staff, owner):
+def test_existing_account_joins_with_its_password_and_owner_role_requires_2fa(store, staff, owner):
     other = user("other@example.com")
     c = client_for(owner)
     c.post(f"{S}/invitations", {"email": "other@example.com", "role": "owner"}, format="json")
@@ -60,7 +60,9 @@ def test_existing_account_joins_with_its_password(store, staff, owner):
     assert bad.status_code == 400 and bad.json()["code"] == "invalid_login"
     r = anon.post(f"/api/v1/auth/invitations/{token}/accept", {"password": "pw-123456!"}, format="json")
     assert r.status_code == 200 and r.json()["memberships"][0]["role"] == "owner"
+    assert r.json()["two_factor_required"] is True and r.json()["two_factor_enabled"] is False
     assert Membership.objects.get(user=other).role == Role.OWNER
+    assert anon.get("/api/v1/admin/tenants/fushimi/options").status_code == 403  # オーナーは二段階認証の設定が先
 
 
 def test_invitation_rules(store, staff, owner, member):
@@ -94,6 +96,7 @@ def test_owner_pauses_and_resumes_members(store, staff, owner, member):
     assert c.patch(f"{S}/members/{oid}", {"is_active": False}, format="json").status_code == 400  # 自分自身
     second = user("owner2@example.com")
     Membership.objects.create(tenant=store, user=second, role=Role.OWNER)
+    enable_two_factor(second)
     assert client_for(second).patch(f"{S}/members/{oid}", {"is_active": False}, format="json").status_code == 200
     assert client_for(owner).get(f"{S}/members").status_code == 403  # 停止されたオーナーは使えない
     assert Staff.objects.filter(tenant=store).count() == 3

@@ -32,6 +32,8 @@
 |---|---|---|
 | GET | `/api/v1/auth/csrf` | CSRFトークンのCookieを発行 |
 | POST | `/api/v1/auth/login`・`logout` | ログイン・ログアウト（セッション） |
+| POST | `/api/v1/auth/login/code` | 二段階認証の2段目。パスワードが合うと `login` は `{two_factor_required: true}` を返し、ここで認証アプリの6桁（または回復コード）を受け付ける。5分以内・同じコードの使い回し不可 |
+| POST | `/api/v1/auth/2fa/setup`・`2fa/confirm` | 二段階認証の設定。QRコード（SVG）と鍵を返し、6桁で確認すると有効になり、回復コード8件を1回だけ返す。オーナーは必須（LOGIN-07）で、設定が済むまで店舗の管理APIは403 |
 | GET | `/api/v1/auth/me` | ログインユーザーと所属店舗 |
 | GET | `/api/v1/admin/tenants/{店舗名}/options` | フォーム用のサービス・担当者と自分の権限 |
 | GET・POST | `.../bookings` | 予約一覧（期間・担当で絞り込み）、手入力の予約（確定で作成） |
@@ -41,10 +43,14 @@
 | GET・POST・DELETE | `.../calendar-feed` | 自分（担当者）のカレンダー配信URLの確認・発行（再発行で古いURLは無効）・停止 |
 | GET・POST・DELETE | `.../time-offs` | 休み・予約不可時間。登録時に影響を受ける予約を返す |
 | GET・PUT・POST・PATCH・DELETE | `.../settings/*` | 設定（店舗・営業時間・休憩・臨時休業・設備・サービス・担当者・並び順・勤務・勤務の例外）。オーナーのみ。`?dry_run=1` は保存せず、新たに成り立たなくなる予約（`affected_bookings`）だけを返す。既存の予約は自動で取消さない |
+| GET・POST・PATCH・DELETE | `.../settings/members`・`members/{id}`・`invitations`・`invitations/{id}` | メンバーの一覧・停止・再開と、招待の送信・取り消し（ADMIN-03）。招待はメールのリンクで7日間有効。同じ相手への古い招待は取り消す。自分自身は停止できない |
+| GET・POST | `/api/v1/auth/invitations/{token}`・`/accept` | 招待の確認と受け入れ（ログイン不要）。アカウントがなければパスワードを決めて作り、あればそのパスワードで参加して、そのままログインする |
 | GET・POST | `.../settings/history`・`history/undo` | 設定の変更履歴（変更前の設定、変更した人、経路＝画面・AI・取り消し）と、直前の変更の取り消し（SETUP-07）。取り消しも `?dry_run=1` で影響を受ける予約を確認できる。あとから作られた担当者・サービスは停止し、使われていない設備は削除する |
 | POST・GET | `.../settings/assistant`・`templates`・`templates/{key}` | AIで設定（SETUP）。店舗の様子や業種テンプレートから設定案を作り、設定APIへの手順（`steps`）として返す。ここでは何も保存しない。手順は画面で1つずつ確認し、上の設定APIで反映する。AIは決まった形の案しか作れず、契約・支払い・権限は扱えない。テンプレートはAIなしで使える |
 
 所属していない店舗は403。スタッフは自分が担当する予約と自分の休みだけを扱える（3章の権限表）。
+
+お客様へのメール（仮押さえ・確定・取消・変更）は Celery の worker が送る（`apps/bookings/tasks.py`）。送信に失敗したら間隔を空けて最大5回やり直す。依頼先の Redis に届かないときは、その場で送り、予約の処理は止めない。
 
 期限切れの仮押さえは空き判定で自動的に除外される。記録の整理は `python manage.py expire_holds` で行う。
 
@@ -66,4 +72,4 @@ python -m pytest --cov --cov-fail-under=95
 pip-audit -r requirements-dev.txt
 ```
 
-開発・E2E用のデモ店舗は `python manage.py seed_demo`（`--reset` で作り直し）で作れる。`DEMO_USER_PASSWORD` を設定すると、オーナー（`owner@fushimi.example`）とスタッフ（`staff@fushimi.example`）のログインも作る。
+開発・E2E用のデモ店舗は `python manage.py seed_demo`（`--reset` で作り直し）で作れる。`DEMO_USER_PASSWORD` を設定すると、オーナー（`owner@fushimi.example`）とスタッフ（`staff@fushimi.example`）のログインも作る。 `DEMO_TOTP_SECRET`（Base32）を渡すと、オーナーの二段階認証をその鍵で設定済みにする（E2E用）。
