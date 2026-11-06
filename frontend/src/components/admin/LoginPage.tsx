@@ -34,6 +34,10 @@ export function LoginPage() {
       signedIn(res as Me);
       router.replace("/bookings");
     } catch (err) {
+      if (err instanceof ApiError && err.code === "expired") {
+        setNeedsCode(false); // 時間切れ。パスワードからやり直してもらう
+        setCode("");
+      }
       setError(err instanceof ApiError ? err.message : "ログインできませんでした");
     } finally {
       setBusy(false);
@@ -63,6 +67,19 @@ export function LoginPage() {
         <Button type="submit" disabled={busy}>
           {busy ? "ログインしています…" : needsCode ? "確認する" : "ログイン"}
         </Button>
+        {needsCode ? (
+          <button
+            type="button"
+            className="min-h-11 text-sm text-sub underline"
+            onClick={() => {
+              setNeedsCode(false);
+              setCode("");
+              setError("");
+            }}
+          >
+            パスワードの入力に戻る
+          </button>
+        ) : null}
       </form>
     </main>
   );

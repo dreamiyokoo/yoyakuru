@@ -102,4 +102,29 @@ describe("two-factor login", () => {
     await userEvent.click(await screen.findByRole("button", { name: "設定を始める" }));
     expect(await screen.findByText(/通信に失敗しました|設定できませんでした/)).toBeInTheDocument();
   });
+
+  it("returns to the password when the pending login expired, or on request", async () => {
+    mockFetch((url) => {
+      const c = csrf(url);
+      if (c) return c;
+      if (url.endsWith("/auth/me")) return { status: 403, body: {} };
+      if (url.endsWith("/auth/login")) return { body: { two_factor_required: true } };
+      return { status: 400, body: { code: "expired", message: "最初からログインしてください" } };
+    });
+    render(
+      <AdminProvider>
+        <LoginPage />
+      </AdminProvider>,
+    );
+    await userEvent.type(await screen.findByLabelText("メールアドレス"), "o@example.com");
+    await userEvent.type(screen.getByLabelText("パスワード"), "pw");
+    await userEvent.click(screen.getByRole("button", { name: "ログイン" }));
+    await userEvent.click(await screen.findByRole("button", { name: "パスワードの入力に戻る" }));
+    expect(screen.getByLabelText("パスワード")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "ログイン" }));
+    await userEvent.type(await screen.findByLabelText("確認コード"), "123456");
+    await userEvent.click(screen.getByRole("button", { name: "確認する" }));
+    expect(await screen.findByText("最初からログインしてください")).toBeInTheDocument();
+    expect(screen.getByLabelText("パスワード")).toBeInTheDocument();
+  });
 });

@@ -8,6 +8,7 @@ import time
 import pyotp
 import segno
 from django.contrib.auth.hashers import check_password, make_password
+from django.db import transaction
 from django.utils import timezone
 
 from apps.stores.models import Membership, Role
@@ -67,17 +68,24 @@ def _use_recovery_code(tf: TwoFactor, code: str) -> bool:
 
 
 def verify(user, code: str) -> bool:
-    tf = TwoFactor.objects.filter(user=user, confirmed_at__isnull=False).first()
-    if tf is None:
-        return False
-    return _verify_totp(tf, code) or _use_recovery_code(tf, code)
+    """行をロックしてから確かめ、使ったコードを消す。同時の要求で同じコードが二度通ることを防ぐ。"""
+    with transaction.atomic():
+        tf = TwoFactor.objects.select_for_update().filter(user=user, confirmed_at__isnull=False).first()
+        if tf is None:
+            return False
+        return _verify_totp(tf, code) or _use_recovery_code(tf, code)
 
 
 def confirm(user, code: str) -> list[str] | None:
     """認証アプリのコードで設定を完了し、回復コードを発行する（表示は1回だけ）。"""
-    tf = TwoFactor.objects.filter(user=user).first()
-    if tf is None or tf.enabled or not _verify_totp(tf, code):
-        return None
+    with transaction.atomic():
+        tf = TwoFactor.objects.select_for_update().filter(user=user).first()
+        if tf is None or tf.enabled or not _verify_totp(tf, code):
+            return None
+        return _finish_setup(tf)
+
+
+def _finish_setup(tf: TwoFactor) -> list[str]:
     codes = [secrets.token_hex(5) for _ in range(RECOVERY_COUNT)]
     tf.recovery_codes = [make_password(c) for c in codes]
     tf.confirmed_at = timezone.now()
