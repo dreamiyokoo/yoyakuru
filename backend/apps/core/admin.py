@@ -1,7 +1,7 @@
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from .models import TwoFactor
+from .models import Lead, TwoFactor
 
 
 @admin.register(TwoFactor)
@@ -21,3 +21,10 @@ class TwoFactorAdmin(ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(Lead)
+class LeadAdmin(ModelAdmin):
+    list_display = ["store_name", "name", "email", "phone", "industry", "created_at"]
+    search_fields = ["store_name", "name", "email"]
+    list_filter = ["industry"]

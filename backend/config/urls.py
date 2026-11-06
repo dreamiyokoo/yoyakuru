@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 
-from apps.core import auth_api
+from apps.core import auth_api, leads
 from apps.stores import invitations
 
 
@@ -15,6 +15,7 @@ urlpatterns = [
     path("health", health),
     path("api/v1/public/", include("apps.bookings.urls")),
     path("api/v1/admin/tenants/<slug:subdomain>/", include("apps.bookings.admin_urls")),
+    path("api/v1/public/leads", leads.LeadView.as_view()),
     path("api/v1/auth/csrf", auth_api.CsrfView.as_view()),
     path("api/v1/auth/login", auth_api.LoginView.as_view()),
     path("api/v1/auth/login/code", auth_api.LoginCodeView.as_view()),

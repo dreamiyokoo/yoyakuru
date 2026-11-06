@@ -142,3 +142,6 @@ SETUP_DAILY_LIMIT_PER_TENANT = int(os.environ.get("SETUP_DAILY_LIMIT_PER_TENANT"
 
 # 管理画面のURL（招待メールのリンクに使う）
 ADMIN_APP_URL = os.environ.get("ADMIN_APP_URL") or f"https://app.{TENANT_BASE_DOMAIN}"
+
+# LPの先行導入の申し込みを知らせる運営のメールアドレス（未設定なら保存だけ）
+LEAD_NOTIFY_EMAIL = os.environ.get("LEAD_NOTIFY_EMAIL", "")
