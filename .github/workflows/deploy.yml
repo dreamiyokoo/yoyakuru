@@ -22,7 +22,8 @@ jobs:
 
       - name: Build and restart containers
         working-directory: /home/yokoo/www/yoyakuru
-        run: docker compose --profile tunnel up -d --build --remove-orphans
+        # 匿名ボリューム（frontend の /app/node_modules）を作り直し、package.json に追加した依存を反映する
+        run: docker compose --profile tunnel up -d --build --remove-orphans --renew-anon-volumes
 
       - name: Verify containers are running
         working-directory: /home/yokoo/www/yoyakuru
