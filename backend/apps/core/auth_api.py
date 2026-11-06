@@ -149,3 +149,34 @@ class MeView(APIView):
 
     def get(self, request):
         return Response(me_payload(request.user))
+
+
+class RecoveryCodesView(APIView):
+    """回復コードの再発行。今のコードで本人を確かめる。新しいコードは1回だけ返す。"""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
+
+    def post(self, request):
+        data = CodeSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        codes = two_factor.regenerate_recovery_codes(request.user, data.validated_data["code"])
+        if codes is None:
+            return Response({"code": "invalid_code", "message": "コードが違います"}, status=400)
+        return Response({"recovery_codes": codes})
+
+
+class TwoFactorResetView(APIView):
+    """本人による二段階認証のやり直し（新しい端末に登録し直す）。今のコードか回復コードで確かめる。"""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "login"
+
+    def post(self, request):
+        data = CodeSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        if not two_factor.reset_with_code(request.user, data.validated_data["code"]):
+            return Response({"code": "invalid_code", "message": "コードが違います"}, status=400)
+        return Response(me_payload(request.user))

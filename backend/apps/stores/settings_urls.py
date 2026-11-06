@@ -9,6 +9,7 @@ urlpatterns = [
     path("history", v.HistoryView.as_view()),
     path("members", v.MemberListView.as_view()),
     path("members/<int:pk>", v.MemberDetailView.as_view()),
+    path("members/<int:pk>/reset-2fa", v.MemberTwoFactorResetView.as_view()),
     path("invitations", v.InvitationListView.as_view()),
     path("invitations/<int:pk>", v.InvitationDetailView.as_view()),
     path("history/undo", v.UndoView.as_view()),

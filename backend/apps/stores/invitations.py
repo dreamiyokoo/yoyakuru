@@ -74,6 +74,7 @@ def member_payload(m: Membership) -> dict:
         "staff": m.staff_id,
         "staff_name": m.staff.display_name if m.staff else "",
         "is_active": m.is_active,
+        "two_factor_enabled": two_factor.enabled_for(m.user),
     }
 
 

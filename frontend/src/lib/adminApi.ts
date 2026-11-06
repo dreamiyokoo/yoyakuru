@@ -30,6 +30,7 @@ export interface Member {
   staff: number | null;
   staff_name: string;
   is_active: boolean;
+  two_factor_enabled: boolean;
 }
 
 export interface Invitation {
@@ -59,6 +60,8 @@ export const adminApi = {
   login: (email: string, password: string) => mutate<Me | { two_factor_required: true }>(`${AUTH}/login`, "POST", { email, password }),
   loginCode: (code: string) => mutate<Me>(`${AUTH}/login/code`, "POST", { code }),
   setupTwoFactor: () => mutate<{ secret: string; uri: string; qr_svg: string }>(`${AUTH}/2fa/setup`, "POST"),
+  regenerateRecoveryCodes: (code: string) => mutate<{ recovery_codes: string[] }>(`${AUTH}/2fa/recovery-codes`, "POST", { code }),
+  resetTwoFactor: (code: string) => mutate<Me>(`${AUTH}/2fa/reset`, "POST", { code }),
   confirmTwoFactor: (code: string) => mutate<Me & { recovery_codes: string[] }>(`${AUTH}/2fa/confirm`, "POST", { code }),
   logout: () => mutate(`${AUTH}/logout`, "POST"),
   options: (sub: string) => request<Options>(`${base(sub)}/options`),
@@ -83,6 +86,7 @@ export const adminApi = {
   invite: (sub: string, body: { email: string; role: string; staff: number | null; new_staff_name: string }) =>
     mutate<Invitation>(`${base(sub)}/settings/invitations`, "POST", body),
   revokeInvitation: (sub: string, id: number) => mutate<Invitation>(`${base(sub)}/settings/invitations/${id}`, "DELETE"),
+  resetMemberTwoFactor: (sub: string, id: number) => mutate<Member>(`${base(sub)}/settings/members/${id}/reset-2fa`, "POST"),
   setMemberActive: (sub: string, id: number, is_active: boolean) => mutate<Member>(`${base(sub)}/settings/members/${id}`, "PATCH", { is_active }),
   /** 招待されたひとが、リンクから参加する（ログイン不要）。 */
   invitation: (token: string) =>

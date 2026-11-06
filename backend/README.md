@@ -43,6 +43,8 @@
 | GET・POST・DELETE | `.../calendar-feed` | 自分（担当者）のカレンダー配信URLの確認・発行（再発行で古いURLは無効）・停止 |
 | GET・POST・DELETE | `.../time-offs` | 休み・予約不可時間。登録時に影響を受ける予約を返す |
 | GET・PUT・POST・PATCH・DELETE | `.../settings/*` | 設定（店舗・営業時間・休憩・臨時休業・設備・サービス・担当者・並び順・勤務・勤務の例外）。オーナーのみ。`?dry_run=1` は保存せず、新たに成り立たなくなる予約（`affected_bookings`）だけを返す。既存の予約は自動で取消さない |
+| POST | `/api/v1/auth/2fa/recovery-codes`・`2fa/reset` | 回復コードの再発行と、本人による二段階認証のやり直し（新しい端末）。どちらも今のコード（認証アプリか回復コード）で本人を確かめる。やり直したオーナーは、設定が済むまで管理APIが403 |
+| POST | `.../settings/members/{id}/reset-2fa` | 端末と回復コードの両方を失ったメンバーの二段階認証を、別のオーナーが外す（自分自身は不可）。本人確認は店舗で行う |
 | GET・POST・PATCH・DELETE | `.../settings/members`・`members/{id}`・`invitations`・`invitations/{id}` | メンバーの一覧・停止・再開と、招待の送信・取り消し（ADMIN-03）。招待はメールのリンクで7日間有効。同じ相手への古い招待は取り消す。自分自身は停止できない |
 | GET・POST | `/api/v1/auth/invitations/{token}`・`/accept` | 招待の確認と受け入れ（ログイン不要）。アカウントがなければパスワードを決めて作り、あればそのパスワードで参加して、そのままログインする |
 | GET・POST | `.../settings/history`・`history/undo` | 設定の変更履歴（変更前の設定、変更した人、経路＝画面・AI・取り消し）と、直前の変更の取り消し（SETUP-07）。取り消しも `?dry_run=1` で影響を受ける予約を確認できる。あとから作られた担当者・サービスは停止し、使われていない設備は削除する |
@@ -73,3 +75,9 @@ pip-audit -r requirements-dev.txt
 ```
 
 開発・E2E用のデモ店舗は `python manage.py seed_demo`（`--reset` で作り直し）で作れる。`DEMO_USER_PASSWORD` を設定すると、オーナー（`owner@fushimi.example`）とスタッフ（`staff@fushimi.example`）のログインも作る。 `DEMO_TOTP_SECRET`（Base32）を渡すと、オーナーの二段階認証をその鍵で設定済みにする（E2E用）。
+
+## 二段階認証の運用（オーナーが一人で、端末と回復コードの両方を失ったとき）
+
+1. 電話などで本人であることを確かめる（登録の氏名・電話番号・最近の予約内容など）。
+2. 管理サイト（Django admin）の「二段階認証」で、その利用者の行を削除する。鍵と回復コードは表示されない。
+3. 本人は次のログインがパスワードだけになり、オーナーなので二段階認証の設定画面に進む。
