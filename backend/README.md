@@ -32,6 +32,8 @@
 |---|---|---|
 | GET | `/api/v1/auth/csrf` | CSRFトークンのCookieを発行 |
 | POST | `/api/v1/auth/login`・`logout` | ログイン・ログアウト（セッション） |
+| POST | `/api/v1/auth/login/code` | 二段階認証の2段目。パスワードが合うと `login` は `{two_factor_required: true}` を返し、ここで認証アプリの6桁（または回復コード）を受け付ける。5分以内・同じコードの使い回し不可 |
+| POST | `/api/v1/auth/2fa/setup`・`2fa/confirm` | 二段階認証の設定。QRコード（SVG）と鍵を返し、6桁で確認すると有効になり、回復コード8件を1回だけ返す。オーナーは必須（LOGIN-07）で、設定が済むまで店舗の管理APIは403 |
 | GET | `/api/v1/auth/me` | ログインユーザーと所属店舗 |
 | GET | `/api/v1/admin/tenants/{店舗名}/options` | フォーム用のサービス・担当者と自分の権限 |
 | GET・POST | `.../bookings` | 予約一覧（期間・担当で絞り込み）、手入力の予約（確定で作成） |
@@ -68,4 +70,4 @@ python -m pytest --cov --cov-fail-under=95
 pip-audit -r requirements-dev.txt
 ```
 
-開発・E2E用のデモ店舗は `python manage.py seed_demo`（`--reset` で作り直し）で作れる。`DEMO_USER_PASSWORD` を設定すると、オーナー（`owner@fushimi.example`）とスタッフ（`staff@fushimi.example`）のログインも作る。
+開発・E2E用のデモ店舗は `python manage.py seed_demo`（`--reset` で作り直し）で作れる。`DEMO_USER_PASSWORD` を設定すると、オーナー（`owner@fushimi.example`）とスタッフ（`staff@fushimi.example`）のログインも作る。 `DEMO_TOTP_SECRET`（Base32）を渡すと、オーナーの二段階認証をその鍵で設定済みにする（E2E用）。

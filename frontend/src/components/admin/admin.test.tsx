@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => nav.pathname,
 }));
 
-const ME: Me = {
+const ME: Me = { two_factor_enabled: true, two_factor_required: true,
   email: "owner@example.com",
   name: "院長",
   memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10 }],

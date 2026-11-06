@@ -10,8 +10,10 @@ from datetime import time
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone
 
 from apps.bookings.models import Booking
+from apps.core.models import TwoFactor
 from apps.stores.models import BusinessHours, Membership, RecurringBreak, Resource, Role, Service, Staff, WeeklyShift
 from apps.tenants.models import Tenant
 
@@ -80,4 +82,10 @@ class Command(BaseCommand):
                 user.set_password(password)
                 user.save()
                 Membership.objects.create(tenant=store, user=user, role=role, staff=member)
+                # デモ・E2E用：オーナーの二段階認証を、決まった鍵で設定済みにする（鍵を渡したときだけ）
+                totp_secret = os.environ.get("DEMO_TOTP_SECRET")
+                if role == Role.OWNER and totp_secret:
+                    TwoFactor.objects.update_or_create(
+                        user=user, defaults={"secret": totp_secret, "confirmed_at": timezone.now(), "last_used_step": 0}
+                    )
         self.stdout.write("created")

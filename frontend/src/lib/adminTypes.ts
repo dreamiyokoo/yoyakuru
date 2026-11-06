@@ -10,6 +10,9 @@ export interface Membership {
 }
 
 export interface Me {
+  /** 二段階認証を設定済みか。オーナーは必須（two_factor_required） */
+  two_factor_enabled: boolean;
+  two_factor_required: boolean;
   email: string;
   name: string;
   memberships: Membership[];

@@ -36,9 +36,9 @@ def book(service, staff=None, start=None, email="c@example.com"):
 
 
 class TestAuth:
-    def test_login_requires_csrf_and_valid_password(self, owner):
+    def test_login_requires_csrf_and_valid_password(self, member):
         c = APIClient(enforce_csrf_checks=True)
-        body = {"email": "OWNER@example.com", "password": "pw-123456!"}
+        body = {"email": "STAFF@example.com", "password": "pw-123456!"}
         assert c.post("/api/v1/auth/login", body, format="json").status_code == 403  # CSRFなし
         c.get("/api/v1/auth/csrf")
         token = c.cookies["csrftoken"].value
@@ -50,10 +50,11 @@ class TestAuth:
             {
                 "subdomain": "fushimi",
                 "name": "伏見整体院",
-                "role": "owner",
-                "staff_id": owner.memberships.get().staff_id,
+                "role": "staff",
+                "staff_id": member.memberships.get().staff_id,
             }
         ]
+        assert r.json()["two_factor_enabled"] is False and r.json()["two_factor_required"] is False
         assert c.get("/api/v1/auth/me").status_code == 200
         token = c.cookies["csrftoken"].value
         assert c.post("/api/v1/auth/logout", HTTP_X_CSRFTOKEN=token).status_code == 200
