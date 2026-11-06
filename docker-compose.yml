@@ -88,12 +88,13 @@ services:
       timeout: 5s
       retries: 5
 
-  # 開発用のメール受信。送ったメールは http://localhost:8025 で確認する（外部には届かない）
+  # 開発用のメール受信。送ったメールは http://<開発機のIP>:8025 で確認する（外部には届かない）
+  # 画面に認証がないため、トンネルには載せず LAN 内からだけ開く
   mailpit:
     image: axllent/mailpit:v1.21.8
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+      - "${MAILPIT_UI_BIND:-0.0.0.0}:${MAILPIT_UI_PORT:-8025}:8025"
 
   frontend:
     build:
