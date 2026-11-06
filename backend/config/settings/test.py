@@ -15,3 +15,4 @@ CELERY_TASK_ALWAYS_EAGER = True
 PUBLIC_BOOKING_URL_TEMPLATE = "https://{subdomain}.yoyakuru.test"
 OPENAI_API_KEY = ""  # テストで外部のAIを呼ばない
 CHAT_PROVIDER = ""
+ADMIN_APP_URL = "https://app.yoyakuru.test"

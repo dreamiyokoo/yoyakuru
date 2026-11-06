@@ -9,6 +9,7 @@ import { AdminShell } from "../AdminShell";
 import { useLoad } from "../useLoad";
 import { HistoryTab } from "./HistoryTab";
 import { HoursTab } from "./HoursTab";
+import { MembersTab } from "./MembersTab";
 import { ResourcesTab } from "./ResourcesTab";
 import { RulesTab } from "./RulesTab";
 import { ServicesTab } from "./ServicesTab";
@@ -22,6 +23,7 @@ const TABS = [
   { id: "services", label: "サービス" },
   { id: "staff", label: "担当者" },
   { id: "resources", label: "設備" },
+  { id: "members", label: "メンバー" },
   { id: "history", label: "履歴" },
 ] as const;
 type Tab = (typeof TABS)[number]["id"];
@@ -63,6 +65,7 @@ function Body({ sub, today }: { sub: string; today: string }) {
         {tab === "services" ? <ServicesTab sub={sub} staff={(staff.data ?? []).filter((s) => s.is_active)} /> : null}
         {tab === "staff" ? <StaffTab sub={sub} today={today} onChanged={staff.reload} /> : null}
         {tab === "resources" ? <ResourcesTab sub={sub} /> : null}
+        {tab === "members" ? <MembersTab sub={sub} staff={staff.data ?? []} onChanged={staff.reload} /> : null}
         {tab === "history" ? <HistoryTab sub={sub} onChanged={staff.reload} /> : null}
       </div>
     </>

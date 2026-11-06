@@ -216,3 +216,26 @@ class SettingChange(TenantOwnedModel):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+class Invitation(TenantOwnedModel):
+    """店舗利用者の招待（ADMIN-03）。オーナーが送り、メールのリンクから受け入れる。期限は7日。"""
+
+    email = models.EmailField()
+    role = models.CharField("権限", max_length=10, choices=Role.choices, default=Role.STAFF)
+    staff = models.ForeignKey(
+        Staff, null=True, blank=True, on_delete=models.SET_NULL, help_text="この担当者として参加する"
+    )
+    token = models.CharField(max_length=64, unique=True, editable=False)
+    invited_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = verbose_name_plural = "招待"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.email}（{self.get_role_display()}）"

@@ -1,5 +1,5 @@
 import { request } from "./api";
-import type { AdminBooking, CalendarDay, Me, Options, TimeOff } from "./adminTypes";
+import type { AdminBooking, CalendarDay, Me, Options, Role, TimeOff } from "./adminTypes";
 
 const AUTH = "/api/v1/auth";
 
@@ -21,6 +21,26 @@ async function mutate<T>(path: string, method: string, body?: unknown, headers: 
 const base = (sub: string) => `/api/v1/admin/tenants/${encodeURIComponent(sub)}`;
 const qs = (params: Record<string, string | number | undefined | null>) =>
   new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "") as [string, string][]).toString();
+
+export interface Member {
+  id: number;
+  email: string;
+  name: string;
+  role: Role;
+  staff: number | null;
+  staff_name: string;
+  is_active: boolean;
+}
+
+export interface Invitation {
+  id: number;
+  email: string;
+  role: Role;
+  staff: number | null;
+  staff_name: string;
+  state: "open" | "accepted" | "revoked" | "expired";
+  expires_at: string;
+}
 
 export interface CalendarFeed {
   path: string | null;
@@ -55,6 +75,16 @@ export const adminApi = {
   calendarFeed: (sub: string) => request<CalendarFeed>(`${base(sub)}/calendar-feed`),
   issueCalendarFeed: (sub: string) => mutate<CalendarFeed>(`${base(sub)}/calendar-feed`, "POST"),
   stopCalendarFeed: (sub: string) => mutate<CalendarFeed>(`${base(sub)}/calendar-feed`, "DELETE"),
+  /** メンバーの招待・停止（オーナーのみ、ADMIN-03）。 */
+  invite: (sub: string, body: { email: string; role: string; staff: number | null; new_staff_name: string }) =>
+    mutate<Invitation>(`${base(sub)}/settings/invitations`, "POST", body),
+  revokeInvitation: (sub: string, id: number) => mutate<Invitation>(`${base(sub)}/settings/invitations/${id}`, "DELETE"),
+  setMemberActive: (sub: string, id: number, is_active: boolean) => mutate<Member>(`${base(sub)}/settings/members/${id}`, "PATCH", { is_active }),
+  /** 招待されたひとが、リンクから参加する（ログイン不要）。 */
+  invitation: (token: string) =>
+    request<{ tenant: string; email: string; role: Role; staff_name: string; has_account: boolean }>(`${AUTH}/invitations/${encodeURIComponent(token)}`),
+  acceptInvitation: (token: string, password: string, name: string) =>
+    mutate<Me>(`${AUTH}/invitations/${encodeURIComponent(token)}/accept`, "POST", { password, name }),
   /** 設定の読み込み（オーナーのみ）。 */
   setting: <T>(sub: string, path: string) => request<T>(`${base(sub)}/settings/${path}`),
   /** 店舗の様子から設定案を作る（保存はしない）。 */

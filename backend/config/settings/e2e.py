@@ -22,3 +22,4 @@ REST_FRAMEWORK = {
     },
 }
 CHAT_PROVIDER = "fake"
+ADMIN_APP_URL = "http://app.localhost:3000"

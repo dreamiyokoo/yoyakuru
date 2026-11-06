@@ -25,6 +25,8 @@ from apps.tenants.models import Tenant
 from .models import (
     BusinessHours,
     DateOverride,
+    Invitation,
+    Membership,
     RecurringBreak,
     Resource,
     Service,
@@ -632,3 +634,53 @@ class UndoView(SettingsView):
             return {"reverted": target.id, "label": history.describe(target.method, target.path)}
 
         return self.apply(request, change, record=False)
+
+
+# ---- メンバーと招待（ADMIN-03）
+
+
+class MemberListView(SettingsView):
+    def get(self, request, subdomain):
+        from .invitations import invitation_payload, member_payload
+
+        members = Membership.objects.for_tenant(self.tenant).select_related("user", "staff").order_by("id")
+        invitations = Invitation.objects.for_tenant(self.tenant).select_related("staff")[:30]
+        return Response(
+            {
+                "members": [member_payload(m) for m in members],
+                "invitations": [invitation_payload(i) for i in invitations],
+            }
+        )
+
+
+class MemberDetailView(SettingsView):
+    """メンバーの停止・再開。自分自身は停止できない（オーナーが一人もいなくなることを防ぐ）。"""
+
+    def patch(self, request, subdomain, pk):
+        from .invitations import member_payload
+
+        m = get_object_or_404(Membership.objects.for_tenant(self.tenant).select_related("user", "staff"), pk=pk)
+        active = serializers.BooleanField().run_validation(request.data.get("is_active"))
+        if not active and m.user_id == request.user.id:
+            raise serializers.ValidationError("自分自身は停止できません")
+        m.is_active = active
+        m.save(update_fields=["is_active"])
+        return Response(member_payload(m))
+
+
+class InvitationListView(SettingsView):
+    def post(self, request, subdomain):
+        from .invitations import create_invitation
+
+        return create_invitation(self, request)
+
+
+class InvitationDetailView(SettingsView):
+    def delete(self, request, subdomain, pk):
+        from .invitations import invitation_payload
+
+        i = get_object_or_404(Invitation.objects.for_tenant(self.tenant), pk=pk)
+        if i.accepted_at is None and i.revoked_at is None:
+            i.revoked_at = timezone.now()
+            i.save(update_fields=["revoked_at"])
+        return Response(invitation_payload(i))

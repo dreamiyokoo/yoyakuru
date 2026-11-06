@@ -57,7 +57,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         if (!active) return;
         setState({ me: null, membership: null, loaded: true });
         const { router: r, pathname: p } = initial.current;
-        if (e instanceof ApiError && (e.status === 401 || e.status === 403) && p !== "/login") r.replace("/login");
+        // 招待の受け入れ（/invite）は、まだログインしていないひとが開く
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403) && p !== "/login" && p !== "/invite") r.replace("/login");
       });
     return () => {
       active = false;
