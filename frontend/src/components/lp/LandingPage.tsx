@@ -232,13 +232,13 @@ function Hero() {
     <section className="relative overflow-hidden bg-surface">
       <div aria-hidden className="absolute -right-40 -top-40 h-[28rem] w-[28rem] rounded-full bg-line/40 blur-3xl" />
       <div aria-hidden className="absolute -bottom-32 -left-32 h-80 w-80 rounded-full bg-accent/10 blur-3xl" />
-      <div className="relative mx-auto grid max-w-6xl items-center gap-10 px-4 pb-14 pt-10 md:grid-cols-[1fr_460px] md:py-20">
+      <div className="relative mx-auto grid max-w-6xl grid-cols-1 items-center gap-10 px-4 pb-14 pt-10 md:py-16 lg:grid-cols-[1fr_460px] lg:py-20">
         <div className="flex flex-col gap-6">
           <p className="inline-flex w-fit items-center gap-2 rounded-full bg-card px-4 py-1.5 text-sm font-bold text-accent shadow-sm">
             <span aria-hidden className="h-2 w-2 rounded-full bg-accent" />
             整体院・治療院向け　先行導入の店舗を募集中
           </p>
-          <h1 className="font-display text-[2rem] font-bold leading-[1.3] md:text-5xl md:leading-[1.25]">
+          <h1 className="font-display text-[1.625rem] font-bold leading-[1.3] min-[360px]:text-[1.75rem] min-[380px]:text-[2rem] md:text-[2.5rem] lg:text-[2.625rem] xl:text-5xl xl:leading-[1.25]">
             <span className="whitespace-nowrap">施術中でも、</span>
             <br />
             <span className="whitespace-nowrap">
