@@ -106,7 +106,14 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
         working-directory: frontend
-      - run: npx playwright install --with-deps chromium
+      # ブラウザ本体はキャッシュする。ランナーにはChromiumの動作に必要なライブラリが入っているので、
+      # --with-deps（aptでのフォント等の追加）はしない。aptのミラーが遅いと数分かかるため
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+      - run: npx playwright install chromium
         working-directory: frontend
       - name: E2E tests
         run: npx playwright test
