@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { getImageProps } from "next/image";
 import { ArrowRight, Calendar, Chat, Check, ChevronDown, Clock, Layers, Minus, Phone, PhoneOff } from "./icons";
 import { LeadForm } from "./LeadForm";
 
@@ -221,13 +220,6 @@ export function LandingPage({ demoUrl }: { demoUrl?: string }) {
 }
 
 function Hero() {
-  const common = { alt: "ヨヤクルの予約台帳と予約ページの画面イメージ", priority: true };
-  const {
-    props: { srcSet: desktop },
-  } = getImageProps({ ...common, src: "/lp/hero-pc.png", width: 460, height: 420, sizes: "460px" });
-  const {
-    props: { srcSet: mobile, ...img },
-  } = getImageProps({ ...common, src: "/lp/hero-sp.png", width: 327, height: 220, sizes: "(max-width: 400px) 100vw, 327px" });
   return (
     <section className="relative overflow-hidden bg-surface">
       <div aria-hidden className="absolute -right-40 -top-40 h-[28rem] w-[28rem] rounded-full bg-line/40 blur-3xl" />
@@ -266,11 +258,18 @@ function Hero() {
             ))}
           </ul>
         </div>
+        {/* 画像は2倍の解像度で用意済み（合計約120KB）。本番の next dev ＋トンネル環境では
+            /_next/image の最適化が失敗したため、public から直接配信する */}
         <picture className="mx-auto block w-full max-w-[327px] md:max-w-[460px]">
-          <source media="(min-width: 768px)" srcSet={desktop} />
-          <source media="(max-width: 767px)" srcSet={mobile} />
-          {/* eslint-disable-next-line jsx-a11y/alt-text -- alt は getImageProps の結果に含まれる */}
-          <img {...img} className="h-auto w-full rounded-3xl shadow-xl shadow-ink/10" />
+          <source media="(min-width: 768px)" srcSet="/lp/hero-pc.png" width={460} height={420} />
+          <img
+            src="/lp/hero-sp.png"
+            alt="ヨヤクルの予約台帳と予約ページの画面イメージ"
+            width={327}
+            height={220}
+            fetchPriority="high"
+            className="h-auto w-full rounded-3xl shadow-xl shadow-ink/10"
+          />
         </picture>
       </div>
     </section>
