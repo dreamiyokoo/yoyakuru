@@ -13,8 +13,8 @@
   --color-line: #a5f3fc;
   --color-muted: #e8f1f6;
   --color-danger: #b91c1c;
-  --font-sans: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
-  --font-display: "Zen Kaku Gothic New", "Noto Sans JP", "Hiragino Sans", sans-serif;
+  --font-sans: var(--font-noto), "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  --font-display: var(--font-zen), "Zen Kaku Gothic New", "Noto Sans JP", "Hiragino Sans", sans-serif;
 }
 
 html {

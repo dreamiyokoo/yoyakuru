@@ -109,6 +109,8 @@ services:
     environment:
       BACKEND_INTERNAL_URL: http://backend:8000
       NEXT_PUBLIC_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-dreami.blog}
+      # LPの「体験」から開く体験用店舗の予約ページ（空なら「準備中」）
+      DEMO_STORE_URL: ${DEMO_STORE_URL:-}
       BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
       BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
     depends_on:
