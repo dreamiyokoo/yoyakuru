@@ -23,7 +23,8 @@ export function MembersTab({ sub, staff, onChanged }: { sub: string; staff: Staf
   if (list.error) return <p className="text-sm text-danger">{list.error}</p>;
   if (!list.data) return <p className="text-sm text-sub">読み込み中…</p>;
   const { members, invitations } = list.data;
-  const linked = new Set(members.filter((m) => m.is_active && m.staff).map((m) => m.staff));
+  // 停止中のメンバーも担当者との結びつきは残るので、招待の選択肢から外す
+  const linked = new Set(members.filter((m) => m.staff).map((m) => m.staff));
 
   const run = async (action: () => Promise<unknown>, done: string) => {
     setBusy(true);

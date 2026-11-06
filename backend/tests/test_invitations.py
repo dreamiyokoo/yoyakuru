@@ -100,3 +100,40 @@ def test_owner_pauses_and_resumes_members(store, staff, owner, member):
     assert client_for(second).patch(f"{S}/members/{oid}", {"is_active": False}, format="json").status_code == 200
     assert client_for(owner).get(f"{S}/members").status_code == 403  # 停止されたオーナーは使えない
     assert Staff.objects.filter(tenant=store).count() == 3
+
+
+def test_accept_requires_csrf(store, staff, owner):
+    client_for(owner).post(f"{S}/invitations", {"email": "c@example.com", "staff": staff[2].id}, format="json")
+    token = token_from_mail()
+    c = APIClient(enforce_csrf_checks=True)
+    assert (
+        c.post(f"/api/v1/auth/invitations/{token}/accept", {"password": "a-good-pass-2026"}, format="json").status_code
+        == 403
+    )
+    c.get("/api/v1/auth/csrf")
+    r = c.post(
+        f"/api/v1/auth/invitations/{token}/accept",
+        {"password": "a-good-pass-2026"},
+        format="json",
+        HTTP_X_CSRFTOKEN=c.cookies["csrftoken"].value,
+    )
+    assert r.status_code == 200
+
+
+def test_staff_linked_to_a_paused_member_or_claimed_first_cannot_be_reused(store, staff, owner, member):
+    from django.contrib.auth import get_user_model
+
+    c = client_for(owner)
+    Membership.objects.filter(user=member).update(is_active=False)  # Bさん（staff[1]）のメンバーを停止
+    r = c.post(f"{S}/invitations", {"email": "x@example.com", "staff": staff[1].id}, format="json")
+    assert r.status_code == 400  # 停止中でも担当者との結びつきは残る
+
+    c.post(f"{S}/invitations", {"email": "p@example.com", "staff": staff[2].id}, format="json")
+    first = token_from_mail()
+    c.post(f"{S}/invitations", {"email": "q@example.com", "staff": staff[2].id}, format="json")
+    second = token_from_mail()
+    body = {"password": "a-good-pass-2026"}
+    assert APIClient().post(f"/api/v1/auth/invitations/{first}/accept", body, format="json").status_code == 200
+    r = APIClient().post(f"/api/v1/auth/invitations/{second}/accept", body, format="json")
+    assert r.status_code == 400 and r.json()["code"] == "staff_taken"
+    assert not get_user_model().objects.filter(email="q@example.com").exists()  # アカウントは作らない

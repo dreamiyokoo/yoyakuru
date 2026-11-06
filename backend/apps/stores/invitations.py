@@ -17,6 +17,8 @@ from django.core.mail import EmailMessage
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny
@@ -96,7 +98,8 @@ def create_invitation(view, request) -> Response:
         staff = None
         if v.get("staff"):
             staff = get_object_or_404(Staff.objects.for_tenant(tenant), pk=v["staff"])
-            if Membership.objects.filter(staff=staff, is_active=True).exists():
+            # 停止中のメンバーも担当者との結びつきは残るので、有効・停止を問わず確かめる
+            if Membership.objects.filter(staff=staff).exists():
                 raise serializers.ValidationError("この担当者には、すでにログインする人がいます")
         elif v.get("new_staff_name", "").strip():
             count = Staff.objects.for_tenant(tenant).count()
@@ -123,8 +126,9 @@ def create_invitation(view, request) -> Response:
 # ---- 招待されたひと向け（ログイン不要。トークンで確認する）
 
 
-def _open_invitation(token: str) -> Invitation:
-    invitation = Invitation.objects.filter(token=token).select_related("tenant", "staff").first()
+def _open_invitation(token: str, lock: bool = False) -> Invitation:
+    qs = Invitation.objects.filter(token=token).select_related("tenant", "staff")
+    invitation = (qs.select_for_update(of=("self",)) if lock else qs).first()
     if invitation is None or not is_open(invitation) or not invitation.tenant.is_active:
         raise NotFound("この招待は無効か、期限が切れています")
     return invitation
@@ -155,19 +159,28 @@ class AcceptSerializer(serializers.Serializer):
 
 
 class AcceptInvitationView(APIView):
-    """招待を受け入れて参加し、そのままログインする。アカウントがなければ作る。"""
+    """招待を受け入れて参加し、そのままログインする。アカウントがなければ作る。
+
+    ログインと同じく、CSRFを明示的に確かめる（未ログインの要求でも）。他のサイトから
+    攻撃者の招待で受け入れさせ、攻撃者のアカウントにログインさせることを防ぐ。
+    """
 
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "login"
 
+    @method_decorator(csrf_protect)
     def post(self, request, token):
         data = AcceptSerializer(data=request.data)
         data.is_valid(raise_exception=True)
         password = data.validated_data["password"]
         with transaction.atomic():
-            i = _open_invitation(token)
-            Invitation.objects.select_for_update().get(pk=i.pk)
+            # ロックを取ってから状態を確かめる。同時に受け入れても、使えるのは1回だけ
+            i = _open_invitation(token, lock=True)
+            if i.staff and Membership.objects.filter(staff=i.staff).exclude(user__email__iexact=i.email).exists():
+                # 別の招待で先に、この担当者に参加した人がいる（アカウントを作る前に断る）
+                message = "この担当者には、すでにログインする人がいます"
+                return Response({"code": "staff_taken", "message": message}, status=400)
             users = get_user_model().objects
             account = users.filter(email__iexact=i.email, is_active=True).first()
             if account:

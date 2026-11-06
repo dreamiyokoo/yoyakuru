@@ -76,3 +76,41 @@ def test_same_second_factor_code_is_accepted_only_once(owner):
     TwoFactor.objects.filter(user=owner).update(recovery_codes=[make_password("abcde12345")])
     assert _verify_at_once(owner, pyotp.TOTP("JBSWY3DPEHPK3PXP").now()).count(True) == 1
     assert _verify_at_once(owner, "abcde-12345").count(True) == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_an_invitation_can_be_accepted_only_once(store, staff, owner):
+    """同じ招待を同時に受け入れても、参加できるのは1回だけ。"""
+    from datetime import timedelta
+
+    from django.utils import timezone
+    from rest_framework.test import APIClient
+
+    from apps.stores.models import Invitation, Membership
+
+    Invitation.objects.create(
+        tenant=store,
+        email="race@example.com",
+        staff=staff[2],
+        token="race-token",
+        expires_at=timezone.now() + timedelta(days=1),
+    )
+    results: list[int] = []
+    barrier = threading.Barrier(4)
+
+    def worker() -> None:
+        try:
+            barrier.wait()
+            r = APIClient().post(
+                "/api/v1/auth/invitations/race-token/accept", {"password": "a-good-pass-2026"}, format="json"
+            )
+            results.append(r.status_code)
+        finally:
+            connection.close()
+
+    threads = [threading.Thread(target=worker) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert results.count(200) == 1 and Membership.objects.filter(user__email="race@example.com").count() == 1
