@@ -27,6 +27,7 @@ from .serializers import (
     TokenSerializer,
 )
 from .services import BookingError, cancel_by_token, cancel_deadline, confirm_by_token, create_booking
+from .tasks import queue_email
 
 
 class PublicView(APIView):
@@ -130,7 +131,7 @@ class HoldView(PublicView):
             ai_assisted=from_chat,
         )
         if not result.replayed:
-            emails.send_hold_email(result.booking)
+            queue_email("hold", result.booking)
         code = status.HTTP_200_OK if result.replayed else status.HTTP_201_CREATED
         return Response(PublicBookingSerializer(result.booking).data, status=code)
 
@@ -144,7 +145,7 @@ class ConfirmView(PublicView):
         before = Booking.objects.filter(token=data.validated_data["token"]).values_list("status", flat=True).first()
         booking = confirm_by_token(data.validated_data["token"])
         if before != booking.status:
-            emails.send_confirmed_email(booking)
+            queue_email("confirmed", booking)
         return Response(PublicBookingSerializer(booking).data)
 
 
@@ -165,7 +166,7 @@ class CancelView(PublicView):
         before = Booking.objects.filter(token=token).values_list("status", flat=True).first()
         booking = cancel_by_token(token)
         if before != booking.status:
-            emails.send_cancelled_email(booking)
+            queue_email("cancelled", booking)
         return Response(PublicBookingSerializer(booking).data)
 
 

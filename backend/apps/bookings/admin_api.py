@@ -21,7 +21,6 @@ from apps.core import two_factor
 from apps.stores.models import Membership, RecurringBreak, Role, Service, Staff, TimeOff
 from apps.tenants.models import Tenant
 
-from . import emails
 from .admin_serializers import (
     AdminBookingSerializer,
     AdminCreateBookingSerializer,
@@ -34,6 +33,7 @@ from .availability import available_slots, overlaps, store_tz
 from .models import Booking, BookingStatus, Channel
 from .serializers import AvailabilityQuerySerializer, PublicServiceSerializer, PublicStaffSerializer
 from .services import BookingError, cancel_by_store, create_booking, reschedule_booking
+from .tasks import queue_email
 
 
 class TenantAdminView(APIView):
@@ -133,7 +133,7 @@ class BookingListView(TenantAdminView):
             confirm=True,
             actor=request.user,
         ).booking
-        emails.send_confirmed_email(booking)
+        queue_email("confirmed", booking)
         return Response(AdminBookingSerializer(booking).data, status=status.HTTP_201_CREATED)
 
 
@@ -151,7 +151,7 @@ class BookingCancelView(TenantAdminView):
         before = booking.status
         booking = cancel_by_store(booking, request.user)
         if before != booking.status:
-            emails.send_cancelled_email(booking)
+            queue_email("cancelled", booking)
         return Response(AdminBookingSerializer(booking).data)
 
 
@@ -166,7 +166,7 @@ class BookingRescheduleView(TenantAdminView):
         booking = reschedule_booking(
             booking, starts_at=data.validated_data["starts_at"], staff=staff, actor=request.user
         )
-        emails.send_changed_email(booking)
+        queue_email("changed", booking)
         return Response(AdminBookingSerializer(booking).data)
 
 

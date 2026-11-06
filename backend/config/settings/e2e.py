@@ -22,3 +22,5 @@ REST_FRAMEWORK = {
     },
 }
 CHAT_PROVIDER = "fake"
+# E2EではRedisとworkerを立てないので、メールの送信はその場で行う（本番はworkerが送る）
+CELERY_TASK_ALWAYS_EAGER = True
