@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 
 from apps.core import auth_api
+from apps.stores import invitations
 
 
 def health(request):
@@ -21,4 +22,6 @@ urlpatterns = [
     path("api/v1/auth/2fa/confirm", auth_api.TwoFactorConfirmView.as_view()),
     path("api/v1/auth/logout", auth_api.LogoutView.as_view()),
     path("api/v1/auth/me", auth_api.MeView.as_view()),
+    path("api/v1/auth/invitations/<str:token>", invitations.InvitationView.as_view()),
+    path("api/v1/auth/invitations/<str:token>/accept", invitations.AcceptInvitationView.as_view()),
 ]

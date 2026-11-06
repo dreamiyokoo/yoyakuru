@@ -139,3 +139,6 @@ CHAT_PROVIDER = os.environ.get("CHAT_PROVIDER", "")  # "fake" は開発・E2E用
 CHAT_DAILY_LIMIT_PER_TENANT = int(os.environ.get("CHAT_DAILY_LIMIT_PER_TENANT") or 300)
 # 設定用のAIの、店舗ごとの1日あたりの回数（SETUP-10）。お客様の利用量には数えない
 SETUP_DAILY_LIMIT_PER_TENANT = int(os.environ.get("SETUP_DAILY_LIMIT_PER_TENANT") or 50)
+
+# 管理画面のURL（招待メールのリンクに使う）
+ADMIN_APP_URL = os.environ.get("ADMIN_APP_URL") or f"https://app.{TENANT_BASE_DOMAIN}"

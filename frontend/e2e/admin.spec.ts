@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 
 const APP = "http://app.localhost:3000";
 const PASSWORD = "e2e-demo-pass";
@@ -117,4 +119,40 @@ test("オーナーは設定を変更でき、スタッフは設定を変更で�
   await login(page, "staff@fushimi.example");
   await page.getByRole("link", { name: "設定" }).click();
   await expect(page.getByText("設定はオーナーのみ変更できます。")).toBeVisible();
+});
+
+/** ファイルに書き出された招待メールから、トークンを取り出す。 */
+async function inviteToken(email: string): Promise<string> {
+  const dir = process.env.E2E_MAIL_DIR ?? "/tmp/yoyakuru-e2e-mail";
+  for (let i = 0; i < 50; i++) {
+    for (const f of fs.existsSync(dir) ? fs.readdirSync(dir) : []) {
+      const raw = fs.readFileSync(path.join(dir, f), "utf8").replace(/=\r?\n/g, "");
+      if (!raw.includes(email)) continue;
+      const m = raw.match(/\/invite\?token=(?:3D)?([A-Za-z0-9_-]{20,})/);
+      if (m) return m[1];
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`invitation mail not found for ${email}`);
+}
+
+test("オーナーがスタッフを招待し、招待されたひとがパスワードを決めて参加できる", async ({ page, browser }) => {
+  const email = `invited-${Date.now()}@example.com`;
+  await login(page, "owner@fushimi.example");
+  await page.getByRole("link", { name: "設定" }).click();
+  await page.getByRole("tab", { name: "メンバー" }).click();
+  await page.getByLabel("招待するひとのメールアドレス").fill(email);
+  await page.getByLabel("担当者の表示名").fill("E2E担当");
+  await page.getByRole("button", { name: "招待メールを送る" }).click();
+  await expect(page.getByText(`${email} に招待メールを送りました。`)).toBeVisible();
+
+  const invited = await (await browser.newContext()).newPage();
+  await invited.goto(`${APP}/invite?token=${await inviteToken(email)}`);
+  await expect(invited.getByText(/伏見整体院/)).toBeVisible();
+  await invited.getByLabel("お名前").fill("招待 太郎");
+  await invited.getByLabel("パスワードを決める").fill("e2e-invited-pass-2026");
+  await invited.getByRole("button", { name: "参加する" }).click();
+  await expect(invited.getByRole("heading", { name: "予約", exact: true })).toBeVisible();
+  await invited.getByRole("link", { name: "カレンダー" }).click();
+  await expect(invited.getByRole("region", { name: "E2E担当" })).toBeVisible(); // 自分の列だけ
 });

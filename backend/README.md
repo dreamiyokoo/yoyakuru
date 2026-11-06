@@ -43,6 +43,8 @@
 | GET・POST・DELETE | `.../calendar-feed` | 自分（担当者）のカレンダー配信URLの確認・発行（再発行で古いURLは無効）・停止 |
 | GET・POST・DELETE | `.../time-offs` | 休み・予約不可時間。登録時に影響を受ける予約を返す |
 | GET・PUT・POST・PATCH・DELETE | `.../settings/*` | 設定（店舗・営業時間・休憩・臨時休業・設備・サービス・担当者・並び順・勤務・勤務の例外）。オーナーのみ。`?dry_run=1` は保存せず、新たに成り立たなくなる予約（`affected_bookings`）だけを返す。既存の予約は自動で取消さない |
+| GET・POST・PATCH・DELETE | `.../settings/members`・`members/{id}`・`invitations`・`invitations/{id}` | メンバーの一覧・停止・再開と、招待の送信・取り消し（ADMIN-03）。招待はメールのリンクで7日間有効。同じ相手への古い招待は取り消す。自分自身は停止できない |
+| GET・POST | `/api/v1/auth/invitations/{token}`・`/accept` | 招待の確認と受け入れ（ログイン不要）。アカウントがなければパスワードを決めて作り、あればそのパスワードで参加して、そのままログインする |
 | GET・POST | `.../settings/history`・`history/undo` | 設定の変更履歴（変更前の設定、変更した人、経路＝画面・AI・取り消し）と、直前の変更の取り消し（SETUP-07）。取り消しも `?dry_run=1` で影響を受ける予約を確認できる。あとから作られた担当者・サービスは停止し、使われていない設備は削除する |
 | POST・GET | `.../settings/assistant`・`templates`・`templates/{key}` | AIで設定（SETUP）。店舗の様子や業種テンプレートから設定案を作り、設定APIへの手順（`steps`）として返す。ここでは何も保存しない。手順は画面で1つずつ確認し、上の設定APIで反映する。AIは決まった形の案しか作れず、契約・支払い・権限は扱えない。テンプレートはAIなしで使える |
 

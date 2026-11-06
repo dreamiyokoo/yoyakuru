@@ -89,3 +89,12 @@ def member(store, staff):
     u = user("staff@example.com")
     Membership.objects.create(tenant=store, user=u, role=Role.STAFF, staff=staff[1])
     return u
+
+
+@pytest.fixture(autouse=True)
+def _fresh_cache():
+    """回数制限（ログイン等）をテストごとに数え直す。"""
+    from django.core.cache import cache
+
+    cache.clear()
+    yield
