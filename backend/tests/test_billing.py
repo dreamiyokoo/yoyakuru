@@ -163,7 +163,7 @@ class TestCheckout:
     def test_creates_session_for_this_store(self, new_owner, stripe_on):
         tenant = Tenant.objects.get(subdomain="komorebi")
         with mock.patch.object(
-            stripe.checkout.Session, "create", return_value={"url": "https://checkout.example/x"}
+            stripe.checkout.Session, "create", return_value={"url": "https://checkout.example/x", "id": "cs_new"}
         ) as create:
             r = client_for(new_owner).post("/api/v1/admin/tenants/komorebi/billing/checkout")
         assert r.status_code == 200 and r.json()["url"] == "https://checkout.example/x"
@@ -178,13 +178,52 @@ class TestCheckout:
         sub = Subscription.objects.get(tenant__subdomain="komorebi")
         sub.stripe_customer_id, sub.status = "cus_1", "canceled"
         sub.save()
-        with mock.patch.object(stripe.checkout.Session, "create", return_value={"url": "u"}) as create:
+        with mock.patch.object(stripe.checkout.Session, "create", return_value={"url": "u", "id": "cs_2"}) as create:
             client_for(new_owner).post("/api/v1/admin/tenants/komorebi/billing/checkout")
         assert create.call_args.kwargs["customer"] == "cus_1"
         sub.status = "active"
         sub.save()
         r = client_for(new_owner).post("/api/v1/admin/tenants/komorebi/billing/checkout")
         assert r.status_code == 409
+
+    def test_reuses_open_session_instead_of_creating_a_second_one(self, new_owner, stripe_on):
+        # 別のタブ・やり直しで押しても、開いたままの支払い画面を使う（二重の契約を防ぐ）
+        url = "/api/v1/admin/tenants/komorebi/billing/checkout"
+        with mock.patch.object(
+            stripe.checkout.Session, "create", return_value={"url": "https://c/1", "id": "cs_1"}
+        ) as create:
+            assert client_for(new_owner).post(url).json()["url"] == "https://c/1"
+        assert Subscription.objects.get(tenant__subdomain="komorebi").checkout_session_id == "cs_1"
+        with (
+            mock.patch.object(
+                stripe.checkout.Session, "retrieve", return_value=obj({"status": "open", "url": "https://c/1"})
+            ),
+            mock.patch.object(stripe.checkout.Session, "create") as create,
+        ):
+            assert client_for(new_owner).post(url).json()["url"] == "https://c/1"
+        assert not create.called
+        # 期限が切れていれば、新しく作る
+        with (
+            mock.patch.object(stripe.checkout.Session, "retrieve", return_value=obj({"status": "expired"})),
+            mock.patch.object(stripe.checkout.Session, "create", return_value={"url": "https://c/2", "id": "cs_2"}),
+        ):
+            assert client_for(new_owner).post(url).json()["url"] == "https://c/2"
+        assert Subscription.objects.get(tenant__subdomain="komorebi").checkout_session_id == "cs_2"
+
+    def test_completed_session_is_synced_instead_of_paying_twice(self, new_owner, stripe_on):
+        sub = Subscription.objects.get(tenant__subdomain="komorebi")
+        sub.checkout_session_id = "cs_1"
+        sub.save()
+        with (
+            mock.patch.object(
+                stripe.checkout.Session, "retrieve", return_value=obj({"status": "complete", "subscription": "sub_1"})
+            ),
+            mock.patch.object(stripe.Subscription, "retrieve", return_value=stripe_sub(tenant_id=sub.tenant_id)),
+            mock.patch.object(stripe.checkout.Session, "create") as create,
+        ):
+            r = client_for(new_owner).post("/api/v1/admin/tenants/komorebi/billing/checkout")
+        assert r.status_code == 409 and not create.called
+        assert Subscription.objects.get(pk=sub.pk).status == "active"
 
     def test_stripe_error_is_502(self, new_owner, stripe_on):
         with mock.patch.object(stripe.checkout.Session, "create", side_effect=stripe.APIConnectionError("down")):

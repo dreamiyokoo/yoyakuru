@@ -18,24 +18,27 @@ export function BillingRequired({ membership, onPaid }: { membership: Membership
     owner && typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("checkout_session") : null,
   );
   const [checking, setChecking] = useState(Boolean(session));
+  // 以前に支払っていた店舗（カードの失敗・解約）は、Stripe の画面でカードの変更や領収書の確認ができる
+  const [manageable, setManageable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!session) return;
+    if (!owner) return;
     let active = true;
     (async () => {
       try {
         const billing = await adminApi.billing(membership.subdomain, session);
         if (!active) return;
+        setManageable(billing.manageable);
         if (billing.usable) {
           window.history.replaceState(null, "", window.location.pathname);
           onPaid(await adminApi.me());
-        } else {
+        } else if (session) {
           setError("お支払いの確認に時間がかかっています。少し待ってから、画面を読み込み直してください。");
         }
       } catch (e) {
-        if (active) setError(e instanceof ApiError ? e.message : "お支払いを確認できませんでした");
+        if (active && session) setError(e instanceof ApiError ? e.message : "お支払いを確認できませんでした");
       } finally {
         if (active) setChecking(false);
       }
@@ -43,13 +46,13 @@ export function BillingRequired({ membership, onPaid }: { membership: Membership
     return () => {
       active = false;
     };
-  }, [session, membership.subdomain, onPaid]);
+  }, [owner, session, membership.subdomain, onPaid]);
 
-  const pay = async () => {
+  const open = async (make: (sub: string) => Promise<{ url: string }>) => {
     setBusy(true);
     setError("");
     try {
-      const { url } = await adminApi.checkout(membership.subdomain);
+      const { url } = await make(membership.subdomain);
       window.location.assign(url);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "お支払いの画面を開けませんでした");
@@ -81,9 +84,14 @@ export function BillingRequired({ membership, onPaid }: { membership: Membership
       </div>
       {checking ? <Notice>お支払いを確認しています…</Notice> : null}
       {error ? <Notice tone="warn">{error}</Notice> : null}
-      <Button onClick={() => void pay()} disabled={busy || checking}>
+      <Button onClick={() => void open(adminApi.checkout)} disabled={busy || checking}>
         {busy ? "お支払いの画面を開いています…" : "お支払いを登録する"}
       </Button>
+      {manageable ? (
+        <Button variant="secondary" onClick={() => void open(adminApi.billingPortal)} disabled={busy || checking}>
+          カードの変更・領収書の確認
+        </Button>
+      ) : null}
     </section>
   );
 }

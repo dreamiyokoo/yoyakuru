@@ -18,6 +18,8 @@ class Subscription(models.Model):
     status = models.CharField("状態", max_length=30, default="pending")
     stripe_customer_id = models.CharField(max_length=100, blank=True)
     stripe_subscription_id = models.CharField(max_length=100, blank=True, db_index=True)
+    # 作成済みの支払い画面。開いたままの画面があれば使い回し、二重の契約を防ぐ
+    checkout_session_id = models.CharField(max_length=100, blank=True)
     current_period_end = models.DateTimeField("次の請求日", null=True, blank=True)
     cancel_at_period_end = models.BooleanField("期間の終わりに解約", default=False)
     updated_at = models.DateTimeField(auto_now=True)

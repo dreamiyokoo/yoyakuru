@@ -30,8 +30,21 @@ def _key() -> str:
     return settings.STRIPE_SECRET_KEY
 
 
+def open_checkout_url(sub: Subscription) -> str | None:
+    """作成済みの支払い画面がまだ開いていれば、そのURLを返す（別のタブ・やり直しでも同じ画面を使う）。"""
+    if not sub.checkout_session_id:
+        return None
+    session = stripe.checkout.Session.retrieve(sub.checkout_session_id, api_key=_key()).to_dict()
+    if session.get("status") == "open":
+        return session.get("url")
+    if session.get("status") == "complete" and session.get("subscription"):
+        # 支払いは済んでいて、知らせがまだ届いていない
+        sync_subscription(str(session["subscription"]), str(sub.tenant_id))
+    return None
+
+
 def create_checkout(sub: Subscription, email: str) -> str:
-    """月額契約の支払い画面（Stripe Checkout）のURLを作る。"""
+    """月額契約の支払い画面（Stripe Checkout）のURLを作り、使い回せるように覚えておく。"""
     tenant_id = str(sub.tenant_id)
     params: dict = {
         "mode": "subscription",
@@ -48,6 +61,8 @@ def create_checkout(sub: Subscription, email: str) -> str:
     else:
         params["customer_email"] = email
     session = stripe.checkout.Session.create(api_key=_key(), **params)
+    sub.checkout_session_id = session["id"]
+    sub.save(update_fields=["checkout_session_id", "updated_at"])
     return session["url"]
 
 

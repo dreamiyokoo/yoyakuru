@@ -141,7 +141,14 @@ class CheckoutView(OwnerBillingView):
                 {"code": "not_configured", "message": "お支払いの受付を準備中です。しばらくお待ちください"}, status=503
             )
         try:
-            return Response({"url": stripe_api.create_checkout(self.sub, request.user.email)})
+            # 同時に押されても支払い画面を1つにする（二重の契約を防ぐ）
+            with transaction.atomic():
+                sub = Subscription.objects.select_for_update().get(pk=self.sub.pk)
+                url = stripe_api.open_checkout_url(sub)
+                sub.refresh_from_db()
+                if sub.usable:
+                    return Response({"code": "already_paid", "message": "お支払いは登録済みです"}, status=409)
+                return Response({"url": url or stripe_api.create_checkout(sub, request.user.email)})
         except stripe.StripeError:
             log.warning("checkout create failed", exc_info=True)
             return self.stripe_error()

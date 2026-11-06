@@ -123,6 +123,23 @@ describe("billing required", () => {
     expect(await screen.findByText("サーバーエラー")).toBeInTheDocument();
   });
 
+  it("lets an owner whose card failed open the Stripe page to change it", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign, search: "", pathname: "/bookings" });
+    mockFetch((url) =>
+      csrf(url) ??
+      (url.includes("/billing?")
+        ? { body: { usable: false, manageable: true } }
+        : url.endsWith("/billing/portal")
+          ? { body: { url: "https://portal.stripe.test/x" } }
+          : { body: {} }),
+    );
+    render(<BillingRequired membership={membership} onPaid={vi.fn()} />);
+    await userEvent.click(await screen.findByRole("button", { name: "カードの変更・領収書の確認" }));
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledWith("https://portal.stripe.test/x"));
+    expect(screen.queryByText(/確認に時間がかかっています/)).toBeNull();
+  });
+
   it("tells staff to wait for the owner", () => {
     render(<BillingRequired membership={{ ...membership, role: "staff" }} onPaid={vi.fn()} />);
     expect(screen.getByText(/オーナーがお支払いを登録すると/)).toBeInTheDocument();
