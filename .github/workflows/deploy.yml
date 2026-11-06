@@ -16,9 +16,28 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Pull latest code
+      # GitHub の main に合わせる。サーバーで直接コミット・編集されていても止まらないよう、
+      # サーバーだけのコミットは deploy-backup/<日時> ブランチに、未コミットの変更は git stash に退避してから合わせる。
+      # .env など git が管理していないファイルはそのまま残る
+      - name: Sync with origin/main
         working-directory: /home/yokoo/www/yoyakuru
-        run: git pull --ff-only origin main
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          stamp=$(date +%Y%m%d-%H%M%S)
+          if ! git diff --quiet || ! git diff --cached --quiet; then
+            git stash push -m "deploy-backup-$stamp"
+            echo "::warning::未コミットの変更を退避しました（git stash list で確認できます）"
+          fi
+          if [ -n "$(git rev-list origin/main..HEAD)" ]; then
+            git branch "deploy-backup/$stamp" HEAD
+            echo "::warning::サーバーだけのコミットを deploy-backup/$stamp に退避しました"
+            git log --oneline origin/main..HEAD
+          fi
+          if [ "$(git rev-parse --abbrev-ref HEAD)" != "main" ]; then
+            git switch -f main 2>/dev/null || git switch -f -c main
+          fi
+          git reset --hard origin/main
 
       - name: Build and restart containers
         working-directory: /home/yokoo/www/yoyakuru
