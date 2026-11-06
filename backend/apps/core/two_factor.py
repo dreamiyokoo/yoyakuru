@@ -91,3 +91,25 @@ def _finish_setup(tf: TwoFactor) -> list[str]:
     tf.confirmed_at = timezone.now()
     tf.save(update_fields=["recovery_codes", "confirmed_at"])
     return [f"{c[:5]}-{c[5:]}" for c in codes]
+
+
+def regenerate_recovery_codes(user, code: str) -> list[str] | None:
+    """今のコード（認証アプリか回復コード）で本人を確かめ、回復コードを作り直す。古いものは使えなくなる。"""
+    with transaction.atomic():
+        tf = TwoFactor.objects.select_for_update().filter(user=user, confirmed_at__isnull=False).first()
+        if tf is None or not (_verify_totp(tf, code) or _use_recovery_code(tf, code)):
+            return None
+        return _finish_setup(tf)
+
+
+def reset(user) -> bool:
+    """二段階認証を外す。次のログインで、オーナーは設定し直す（端末の紛失など）。"""
+    deleted, _ = TwoFactor.objects.filter(user=user).delete()
+    return deleted > 0
+
+
+def reset_with_code(user, code: str) -> bool:
+    """本人が、今のコード（回復コードを含む）で確かめてから外す。新しい端末に登録し直すため。"""
+    if not verify(user, code):
+        return False
+    return reset(user)

@@ -20,6 +20,8 @@ urlpatterns = [
     path("api/v1/auth/login/code", auth_api.LoginCodeView.as_view()),
     path("api/v1/auth/2fa/setup", auth_api.TwoFactorSetupView.as_view()),
     path("api/v1/auth/2fa/confirm", auth_api.TwoFactorConfirmView.as_view()),
+    path("api/v1/auth/2fa/recovery-codes", auth_api.RecoveryCodesView.as_view()),
+    path("api/v1/auth/2fa/reset", auth_api.TwoFactorResetView.as_view()),
     path("api/v1/auth/logout", auth_api.LogoutView.as_view()),
     path("api/v1/auth/me", auth_api.MeView.as_view()),
     path("api/v1/auth/invitations/<str:token>", invitations.InvitationView.as_view()),

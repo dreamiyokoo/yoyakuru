@@ -684,3 +684,21 @@ class InvitationDetailView(SettingsView):
             i.revoked_at = timezone.now()
             i.save(update_fields=["revoked_at"])
         return Response(invitation_payload(i))
+
+
+class MemberTwoFactorResetView(SettingsView):
+    """端末と回復コードの両方を失ったメンバーの二段階認証を、別のオーナーが外す。自分自身は外せない。
+
+    外された人は、次のログインがパスワードだけになり、オーナーなら設定し直すまで管理画面を使えない。
+    """
+
+    def post(self, request, subdomain, pk):
+        from apps.core import two_factor
+
+        from .invitations import member_payload
+
+        m = get_object_or_404(Membership.objects.for_tenant(self.tenant).select_related("user", "staff"), pk=pk)
+        if m.user_id == request.user.id:
+            raise serializers.ValidationError("自分の二段階認証は、アカウントの画面で設定し直してください")
+        two_factor.reset(m.user)
+        return Response(member_payload(m))

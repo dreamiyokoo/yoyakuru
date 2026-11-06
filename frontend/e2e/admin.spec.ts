@@ -22,20 +22,24 @@ function totp(secret: string, at = Date.now()): string {
 
 let lastStep = 0;
 
+/** 前回と違う30秒の区切りの6桁を待って返す（同じコードは使い回せない）。 */
+async function freshCode(page: Page): Promise<string> {
+  let now = Date.now();
+  while (Math.floor(now / 30000) <= lastStep) {
+    await page.waitForTimeout(1000);
+    now = Date.now();
+  }
+  lastStep = Math.floor(now / 30000);
+  return totp(TOTP_SECRET, now);
+}
+
 async function login(page: Page, email: string) {
   await page.goto(`${APP}/login`);
   await page.getByLabel("メールアドレス").fill(email);
   await page.getByLabel("パスワード").fill(PASSWORD);
   await page.getByRole("button", { name: "ログイン" }).click();
   if (email.startsWith("owner")) {
-    // 同じコードは使い回せないので、前回と違う30秒の区切りのコードを使う
-    let now = Date.now();
-    while (Math.floor(now / 30000) <= lastStep) {
-      await page.waitForTimeout(1000);
-      now = Date.now();
-    }
-    lastStep = Math.floor(now / 30000);
-    await page.getByLabel("確認コード").fill(totp(TOTP_SECRET, now));
+    await page.getByLabel("確認コード").fill(await freshCode(page));
     await page.getByRole("button", { name: "確認する" }).click();
   }
   await expect(page.getByRole("heading", { name: "予約", exact: true })).toBeVisible();
@@ -87,6 +91,7 @@ test("店舗のサブドメインでは管理画面を開けない", async ({ pa
 });
 
 test("オーナーは設定を変更でき、スタッフは設定を変更できない", async ({ page }) => {
+  test.setTimeout(120_000); // 二段階認証のコードを2回待つ（同じ30秒の区切りのコードは使えない）
   await login(page, "owner@fushimi.example");
   await page.getByRole("link", { name: "設定" }).click();
   // AIで設定：ことばから設定案を作り、1つずつ確認して反映する（E2Eでは外部のAIを呼ばない偽物）
@@ -114,6 +119,12 @@ test("オーナーは設定を変更でき、スタッフは設定を変更で�
   await page.getByRole("tab", { name: "担当者" }).click();
   await page.getByRole("button", { name: "勤務" }).first().click();
   await expect(page.getByRole("heading", { name: "週の勤務" })).toBeVisible();
+  // アカウント：今のコードで本人を確かめ、回復コードを作り直す
+  await page.getByRole("link", { name: "アカウント" }).click();
+  await expect(page.getByText("二段階認証：設定済み")).toBeVisible();
+  await page.getByLabel("認証アプリの6桁（または回復コード）").fill(await freshCode(page));
+  await page.getByRole("button", { name: "回復コードを作り直す" }).click();
+  await expect(page.getByText(/古い回復コードは使えなくなりました/)).toBeVisible();
   await page.getByRole("button", { name: "ログアウト" }).click();
 
   await login(page, "staff@fushimi.example");
@@ -137,6 +148,7 @@ async function inviteToken(email: string): Promise<string> {
 }
 
 test("オーナーがスタッフを招待し、招待されたひとがパスワードを決めて参加できる", async ({ page, browser }) => {
+  test.setTimeout(90_000);
   const email = `invited-${Date.now()}@example.com`;
   await login(page, "owner@fushimi.example");
   await page.getByRole("link", { name: "設定" }).click();

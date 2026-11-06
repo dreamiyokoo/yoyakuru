@@ -37,6 +37,9 @@ export function AdminShell({ title, action, children }: { title: string; action?
             ))}
           </select>
         ) : null}
+        <Link href="/account" className="flex min-h-11 items-center text-sm text-sub">
+          アカウント
+        </Link>
         <button type="button" onClick={() => void signOut()} className="min-h-11 text-sm text-sub">
           ログアウト
         </button>
