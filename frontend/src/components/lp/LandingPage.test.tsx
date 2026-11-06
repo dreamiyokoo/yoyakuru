@@ -10,10 +10,19 @@ describe("LandingPage", () => {
   it("shows the sections and marks features that are not ready", () => {
     render(<LandingPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("施術中でも、電話を取りこぼさない。");
-    for (const h of ["こんなこと、ありませんか？", "受付を、まるごとAIに。", "はじめ方は3ステップ", "よくある質問", "先行導入に申し込む"])
+    for (const h of ["こんなこと、ありませんか？", "受付を、まるごとAIに。", "電話もWebも、ひとつの台帳で。", "はじめ方は3ステップ", "よくある質問", "先行導入に申し込む"])
       expect(screen.getByRole("heading", { name: h })).toBeInTheDocument();
-    expect(screen.getAllByText("準備中")).toHaveLength(2);
+    // AI電話（できること・体験）、LINE・Google入力、体験用の予約ページ（URL未設定）
+    expect(screen.getAllByText("準備中")).toHaveLength(4);
+    expect(screen.getByRole("img", { name: /画面イメージ/ })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: /ちがい/ })).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "先行導入に申し込む" })[0]).toHaveAttribute("href", "#apply");
+  });
+
+  it("links to the demo store when its URL is set", () => {
+    render(<LandingPage demoUrl="https://fushimi.example.test/" />);
+    expect(screen.getByRole("link", { name: "予約ページを開く" })).toHaveAttribute("href", "https://fushimi.example.test/");
+    expect(screen.getAllByText("準備中")).toHaveLength(3);
   });
 
   it("validates and sends an application", async () => {

@@ -15,9 +15,17 @@ export async function generateMetadata(): Promise<Metadata> {
   if (site === "app") return {};
   const description = "施術中でも、電話を取りこぼさない。AIが電話とチャットで予約を受け付け、ひとつの予約台帳にまとめます。整体院・治療院向けの予約受付サービス。";
   return {
+    metadataBase: new URL(`https://${process.env.NEXT_PUBLIC_BASE_DOMAIN ?? "dreami.blog"}`),
     title: { absolute: "ヨヤクル｜整体院・治療院向け AI予約受付" },
     description,
-    openGraph: { title: "ヨヤクル｜整体院・治療院向け AI予約受付", description, type: "website", locale: "ja_JP" },
+    openGraph: {
+      title: "ヨヤクル｜整体院・治療院向け AI予約受付",
+      description,
+      type: "website",
+      locale: "ja_JP",
+      images: [{ url: "/og/default.png", width: 1200, height: 630, alt: "ヨヤクル" }],
+    },
+    twitter: { card: "summary_large_image" },
   };
 }
 
@@ -31,5 +39,6 @@ export default async function Home() {
     return <BookingWizard store={store} />;
   }
 
-  return <LandingPage />;
+  // 体験用店舗の予約ページ（例：https://fushimi.dreami.blog/）。未設定なら「準備中」と表示する
+  return <LandingPage demoUrl={process.env.DEMO_STORE_URL || undefined} />;
 }
