@@ -687,7 +687,9 @@ class InvitationDetailView(SettingsView):
 
 
 class MemberTwoFactorResetView(SettingsView):
-    """端末と回復コードの両方を失ったメンバーの二段階認証を、別のオーナーが外す。自分自身は外せない。
+    """端末と回復コードの両方を失ったメンバーの二段階認証を、別のオーナーが外す。
+
+    対象は、この店舗で有効なメンバーで、ほかの店舗に所属していない人だけ。自分自身は外せない。
 
     外された人は、次のログインがパスワードだけになり、オーナーなら設定し直すまで管理画面を使えない。
     """
@@ -697,8 +699,16 @@ class MemberTwoFactorResetView(SettingsView):
 
         from .invitations import member_payload
 
-        m = get_object_or_404(Membership.objects.for_tenant(self.tenant).select_related("user", "staff"), pk=pk)
+        m = get_object_or_404(
+            Membership.objects.for_tenant(self.tenant).filter(is_active=True).select_related("user", "staff"), pk=pk
+        )
         if m.user_id == request.user.id:
             raise serializers.ValidationError("自分の二段階認証は、アカウントの画面で設定し直してください")
+        # 二段階認証はアカウント全体のもの。ほかの店舗にも所属している人は、その店舗の保護も外れるので、
+        # この店舗のオーナーだけでは外せない（運営が本人確認をして行う）
+        if Membership.objects.filter(user=m.user, is_active=True).exclude(tenant=self.tenant).exists():
+            raise serializers.ValidationError(
+                "ほかの店舗にも所属しているため、ここではリセットできません。運営にご連絡ください"
+            )
         two_factor.reset(m.user)
         return Response(member_payload(m))

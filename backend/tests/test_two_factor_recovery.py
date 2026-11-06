@@ -74,3 +74,23 @@ def test_operator_admin_hides_secrets_and_only_allows_delete(owner):
     request = RequestFactory().get("/")
     assert admin.has_add_permission(request) is False and admin.has_change_permission(request) is False
     assert "secret" not in admin.fields and "recovery_codes" not in admin.fields
+
+
+def test_reset_is_limited_to_active_members_of_only_this_store(store, staff, owner):
+    from apps.tenants.models import Tenant
+
+    c = client_for(owner)
+    paused = user("paused@example.com")
+    pid = Membership.objects.create(tenant=store, user=paused, role=Role.STAFF, is_active=False).id
+    enable_two_factor(paused)
+    assert c.post(f"{S}/members/{pid}/reset-2fa").status_code == 404  # 停止中（元メンバー）は不可
+    assert TwoFactor.objects.filter(user=paused).exists()
+
+    multi = user("multi@example.com")
+    mid = Membership.objects.create(tenant=store, user=multi, role=Role.STAFF).id
+    other_store = Tenant.objects.create(subdomain="other", name="他店")
+    Membership.objects.create(tenant=other_store, user=multi, role=Role.OWNER)
+    enable_two_factor(multi)
+    r = c.post(f"{S}/members/{mid}/reset-2fa")
+    assert r.status_code == 400 and "運営" in str(r.json())  # ほかの店舗の保護を外さない
+    assert TwoFactor.objects.filter(user=multi).exists()

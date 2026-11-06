@@ -70,7 +70,7 @@ export function MembersTab({ sub, staff, onChanged }: { sub: string; staff: Staf
               >
                 {m.is_active ? "停止" : "再開"}
               </button>
-              {m.two_factor_enabled && m.email !== me?.email ? (
+              {m.is_active && m.two_factor_enabled && m.email !== me?.email ? (
                 <button
                   type="button"
                   disabled={busy}
