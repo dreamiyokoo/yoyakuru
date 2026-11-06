@@ -26,6 +26,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from apps.core import two_factor
 from apps.core.auth_api import me_payload
 
 from .models import Invitation, Membership, Role, Staff
@@ -155,6 +156,7 @@ class InvitationView(APIView):
 
 class AcceptSerializer(serializers.Serializer):
     password = serializers.CharField(max_length=200)
+    code = serializers.CharField(max_length=20, required=False, allow_blank=True)
     name = serializers.CharField(max_length=100, required=False, allow_blank=True)
 
 
@@ -187,6 +189,14 @@ class AcceptInvitationView(APIView):
                 user = authenticate(request, username=account.get_username(), password=password)
                 if user is None:
                     return Response({"code": "invalid_login", "message": "パスワードが違います"}, status=400)
+                if two_factor.enabled_for(user):
+                    # 二段階認証を設定済みのアカウントは、ログインと同じく認証アプリのコードも求める
+                    code = data.validated_data.get("code", "")
+                    if not code:
+                        message = "認証アプリの6桁（または回復コード）を入力してください"
+                        return Response({"code": "two_factor_required", "message": message}, status=400)
+                    if not two_factor.verify(user, code):
+                        return Response({"code": "invalid_code", "message": "コードが違います"}, status=400)
             else:
                 try:
                     validate_password(password)

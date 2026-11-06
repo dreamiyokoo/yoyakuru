@@ -87,8 +87,8 @@ export const adminApi = {
   /** 招待されたひとが、リンクから参加する（ログイン不要）。 */
   invitation: (token: string) =>
     request<{ tenant: string; email: string; role: Role; staff_name: string; has_account: boolean }>(`${AUTH}/invitations/${encodeURIComponent(token)}`),
-  acceptInvitation: (token: string, password: string, name: string) =>
-    mutate<Me>(`${AUTH}/invitations/${encodeURIComponent(token)}/accept`, "POST", { password, name }),
+  acceptInvitation: (token: string, password: string, name: string, code = "") =>
+    mutate<Me>(`${AUTH}/invitations/${encodeURIComponent(token)}/accept`, "POST", { password, name, ...(code ? { code } : {}) }),
   /** 設定の読み込み（オーナーのみ）。 */
   setting: <T>(sub: string, path: string) => request<T>(`${base(sub)}/settings/${path}`),
   /** 店舗の様子から設定案を作る（保存はしない）。 */

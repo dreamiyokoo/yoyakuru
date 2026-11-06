@@ -137,3 +137,24 @@ def test_staff_linked_to_a_paused_member_or_claimed_first_cannot_be_reused(store
     r = APIClient().post(f"/api/v1/auth/invitations/{second}/accept", body, format="json")
     assert r.status_code == 400 and r.json()["code"] == "staff_taken"
     assert not get_user_model().objects.filter(email="q@example.com").exists()  # アカウントは作らない
+
+
+def test_existing_account_with_two_factor_must_enter_its_code(store, staff, owner):
+    import pyotp
+
+    from .conftest import enable_two_factor
+
+    other = user("tf@example.com")
+    enable_two_factor(other, secret="KRSXG5CTMVRXEZLU")
+    client_for(owner).post(f"{S}/invitations", {"email": "tf@example.com", "staff": staff[2].id}, format="json")
+    url = f"/api/v1/auth/invitations/{token_from_mail()}/accept"
+    anon = APIClient()
+    r = anon.post(url, {"password": "pw-123456!"}, format="json")
+    assert r.status_code == 400 and r.json()["code"] == "two_factor_required"
+    assert anon.get("/api/v1/auth/me").status_code == 403  # まだログインしていない
+    r = anon.post(url, {"password": "pw-123456!", "code": "000000"}, format="json")
+    assert r.status_code == 400 and r.json()["code"] == "invalid_code"
+    assert not Membership.objects.filter(user=other).exists()
+    code = pyotp.TOTP("KRSXG5CTMVRXEZLU").now()
+    assert anon.post(url, {"password": "pw-123456!", "code": code}, format="json").status_code == 200
+    assert Membership.objects.filter(user=other).exists()

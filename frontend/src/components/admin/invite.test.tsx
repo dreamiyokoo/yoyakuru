@@ -59,11 +59,15 @@ describe("invitation", () => {
     expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ password: "short-longer-pass", name: "田中" });
   });
 
-  it("asks an existing account for its password, and explains invalid links", async () => {
-    mockFetch((url) => {
+  it("asks an existing account for its password (and code), and explains invalid links", async () => {
+    const calls = mockFetch((url) => {
       const c = csrf(url);
       if (c) return c;
       if (url.endsWith("/auth/me")) return { status: 403, body: {} };
+      if (url.endsWith("/accept"))
+        return calls.filter((x) => x.url.endsWith("/accept")).length === 1
+          ? { status: 400, body: { code: "two_factor_required", message: "認証アプリの6桁（または回復コード）を入力してください" } }
+          : { body: owner };
       if (url.includes("/invitations/bad")) return { status: 404, body: { detail: "この招待は無効か、期限が切れています" } };
       return { body: { tenant: "伏見整体院", email: "o2@example.com", role: "owner", staff_name: "", has_account: true } };
     });
@@ -72,8 +76,13 @@ describe("invitation", () => {
         <InvitePage token="tok" />
       </AdminProvider>,
     );
-    expect(await screen.findByLabelText("パスワード")).toBeInTheDocument();
+    await userEvent.type(await screen.findByLabelText("パスワード"), "pw");
     expect(screen.getByText(/二段階認証の設定が必要/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "参加する" }));
+    await userEvent.type(await screen.findByLabelText("確認コード"), "123456");
+    await userEvent.click(screen.getByRole("button", { name: "参加する" }));
+    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/bookings"));
+    expect(JSON.parse(String(calls.filter((x) => x.url.endsWith("/accept"))[1].init?.body))).toEqual({ password: "pw", name: "", code: "123456" });
     unmount();
     render(
       <AdminProvider>

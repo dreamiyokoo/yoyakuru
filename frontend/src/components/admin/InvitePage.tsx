@@ -17,6 +17,8 @@ export function InvitePage({ token }: { token: string }) {
   const info = useLoad(`invite|${token}`, () => adminApi.invitation(token));
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [needsCode, setNeedsCode] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -25,9 +27,11 @@ export function InvitePage({ token }: { token: string }) {
     setBusy(true);
     setError("");
     try {
-      signedIn(await adminApi.acceptInvitation(token, password, name.trim()));
+      signedIn(await adminApi.acceptInvitation(token, password, name.trim(), code.trim()));
       router.replace("/bookings");
     } catch (err) {
+      // 二段階認証を設定済みのアカウントは、認証アプリのコードも求める
+      if (err instanceof ApiError && err.code === "two_factor_required") setNeedsCode(true);
       setError(err instanceof ApiError ? err.message : "参加できませんでした");
     } finally {
       setBusy(false);
@@ -53,6 +57,7 @@ export function InvitePage({ token }: { token: string }) {
               <Field label="パスワードを決める" type="password" value={password} onChange={setPassword} autoComplete="new-password" hint="10文字以上で、推測されにくいものにしてください" required />
             </>
           )}
+          {needsCode ? <Field label="確認コード" value={code} onChange={setCode} autoComplete="one-time-code" hint="認証アプリの6桁、または回復コード" required /> : null}
           {info.data.role === "owner" ? <p className="text-xs text-sub">オーナーは、参加の後に二段階認証の設定が必要です。</p> : null}
           {error ? <Notice tone="warn">{error}</Notice> : null}
           <Button type="submit" disabled={busy || !password}>
