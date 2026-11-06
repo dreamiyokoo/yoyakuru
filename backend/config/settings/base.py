@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     "apps.tenants",
     "apps.stores",
     "apps.bookings",
+    "apps.billing",
 ]
 
 MIDDLEWARE = [
@@ -88,6 +89,7 @@ REST_FRAMEWORK = {
         "public_hold": os.environ.get("THROTTLE_PUBLIC_HOLD", "10/hour"),
         "public_token": os.environ.get("THROTTLE_PUBLIC_TOKEN", "30/min"),
         "login": os.environ.get("THROTTLE_LOGIN", "10/min"),
+        "signup": os.environ.get("THROTTLE_SIGNUP", "10/hour"),
         "public_chat": os.environ.get("THROTTLE_PUBLIC_CHAT", "20/hour"),
     },
 }
@@ -143,5 +145,7 @@ SETUP_DAILY_LIMIT_PER_TENANT = int(os.environ.get("SETUP_DAILY_LIMIT_PER_TENANT"
 # 管理画面のURL（招待メールのリンクに使う）
 ADMIN_APP_URL = os.environ.get("ADMIN_APP_URL") or f"https://app.{TENANT_BASE_DOMAIN}"
 
-# LPの先行導入の申し込みを知らせる運営のメールアドレス（未設定なら保存だけ）
-LEAD_NOTIFY_EMAIL = os.environ.get("LEAD_NOTIFY_EMAIL", "")
+# 店舗の月額契約（Stripe）。未設定なら登録はできるが、支払いの受付は「準備中」になる
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID", "")

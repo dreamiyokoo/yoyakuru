@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/account",
 }));
 
-const owner: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10 }] };
+const owner: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
 
 function csrf(url: string) {
   if (url.endsWith("/auth/csrf")) {
@@ -30,6 +30,23 @@ afterEach(() => {
 });
 
 describe("account", () => {
+  it("opens the Stripe page to manage the payment for self-registered stores", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    const managed: Me = { ...owner, memberships: [{ ...owner.memberships[0], billing_managed: true }] };
+    mockFetch((url) => csrf(url) ?? (url.endsWith("/auth/me") ? { body: managed } : url.endsWith("/billing/portal") ? { body: { url: "https://portal.stripe.test/x" } } : { body: {} }));
+    renderWith(<AccountPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "お支払いの管理を開く" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://portal.stripe.test/x"));
+  });
+
+  it("does not show payment for stores the operator set up", async () => {
+    mockFetch((url) => csrf(url) ?? (url.endsWith("/auth/me") ? { body: owner } : { body: {} }));
+    renderWith(<AccountPage />);
+    expect(await screen.findByText("二段階認証：設定済み")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "お支払いの管理を開く" })).toBeNull();
+  });
+
   it("regenerates recovery codes after confirming the current code", async () => {
     const calls = mockFetch((url) => {
       const c = csrf(url);

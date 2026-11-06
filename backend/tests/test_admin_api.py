@@ -52,6 +52,8 @@ class TestAuth:
                 "name": "伏見整体院",
                 "role": "staff",
                 "staff_id": member.memberships.get().staff_id,
+                "billing_required": False,
+                "billing_managed": False,
             }
         ]
         assert r.json()["two_factor_enabled"] is False and r.json()["two_factor_required"] is False

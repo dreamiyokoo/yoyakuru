@@ -7,6 +7,7 @@ import { adminApi } from "@/lib/adminApi";
 import type { Me, Membership } from "@/lib/adminTypes";
 
 const STORAGE_KEY = "yoyakuru.tenant";
+const PUBLIC_PATHS = ["/login", "/invite", "/signup"];
 
 interface AdminState {
   me: Me | null;
@@ -57,8 +58,8 @@ export function AdminProvider({ children }: { children: ReactNode }) {
         if (!active) return;
         setState({ me: null, membership: null, loaded: true });
         const { router: r, pathname: p } = initial.current;
-        // 招待の受け入れ（/invite）は、まだログインしていないひとが開く
-        if (e instanceof ApiError && (e.status === 401 || e.status === 403) && p !== "/login" && p !== "/invite") r.replace("/login");
+        // 招待の受け入れ（/invite）と新規登録（/signup）は、まだログインしていないひとが開く
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403) && !PUBLIC_PATHS.includes(p)) r.replace("/login");
       });
     return () => {
       active = false;
@@ -82,6 +83,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
     router.replace("/login");
   }, [router]);
 
-  if (!state.loaded && pathname !== "/login") return <p className="p-6 text-sm text-sub">読み込み中…</p>;
+  if (!state.loaded && pathname !== "/login" && pathname !== "/signup") return <p className="p-6 text-sm text-sub">読み込み中…</p>;
   return <Ctx.Provider value={{ me: state.me, membership: state.membership, setTenant, signedIn, signOut }}>{children}</Ctx.Provider>;
 }

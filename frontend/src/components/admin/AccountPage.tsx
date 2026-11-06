@@ -16,7 +16,7 @@ export function AccountPage() {
 }
 
 function Body() {
-  const { me, signedIn } = useAdmin();
+  const { me, membership, signedIn } = useAdmin();
   const [code, setCode] = useState("");
   const [codes, setCodes] = useState<string[] | null>(null);
   const [message, setMessage] = useState("");
@@ -90,6 +90,19 @@ function Body() {
           </div>
         ) : null}
       </section>
+      {membership?.role === "owner" && membership.billing_managed ? (
+        <section aria-label="お支払い" className="flex flex-col gap-3 rounded-xl border border-line px-4 py-3">
+          <h2 className="text-sm font-bold">お支払い（{membership.name}）</h2>
+          <p className="text-sm text-sub">カードの変更、領収書の確認、解約は Stripe の画面で行います。</p>
+          <Button
+            variant="secondary"
+            disabled={busy}
+            onClick={() => void run(async () => window.location.assign((await adminApi.billingPortal(membership.subdomain)).url))}
+          >
+            お支払いの管理を開く
+          </Button>
+        </section>
+      ) : null}
     </>
   );
 }

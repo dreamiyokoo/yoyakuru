@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAdmin } from "./AdminContext";
+import { BillingRequired } from "./BillingRequired";
 import { TwoFactorSetup } from "./TwoFactorSetup";
 
 const TABS = [
@@ -47,6 +48,8 @@ export function AdminShell({ title, action, children }: { title: string; action?
       <main className="flex flex-1 flex-col gap-3 px-4 py-4">
         {me.two_factor_required && !me.two_factor_enabled ? (
           <TwoFactorSetup onDone={signedIn} />
+        ) : membership?.billing_required ? (
+          <BillingRequired membership={membership} onPaid={signedIn} />
         ) : membership ? (
           children(membership.subdomain)
         ) : (

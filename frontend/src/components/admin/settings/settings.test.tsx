@@ -11,8 +11,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/settings",
 }));
 
-const owner: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10 }] };
-const staffMe: Me = { ...owner, memberships: [{ ...owner.memberships[0], role: "staff", staff_id: 11 }] };
+const owner: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
+const staffMe: Me = { ...owner, memberships: [{ ...owner.memberships[0], role: "staff", staff_id: 11, billing_required: false, billing_managed: false }] };
 
 const affected: AdminBooking = {
   id: 7, status: "confirmed", starts_at: "2026-11-11T10:00:00+09:00", ends_at: "2026-11-11T11:00:00+09:00", hold_expires_at: null,
@@ -300,7 +300,7 @@ describe("settings", () => {
   });
 
   it("drops a pending change when the owner switches stores", async () => {
-    const two: Me = { ...owner, memberships: [...owner.memberships, { subdomain: "kyoto", name: "京都店", role: "owner", staff_id: 20 }] };
+    const two: Me = { ...owner, memberships: [...owner.memberships, { subdomain: "kyoto", name: "京都店", role: "owner", staff_id: 20, billing_required: false, billing_managed: false }] };
     const be = backend({ affects: ["hours"], me: two });
     renderAs();
     await openTab("営業時間");

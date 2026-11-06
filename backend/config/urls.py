@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 
-from apps.core import auth_api, leads
+from apps.billing import views as billing
+from apps.core import auth_api
 from apps.stores import invitations
 
 
@@ -14,8 +15,12 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("health", health),
     path("api/v1/public/", include("apps.bookings.urls")),
+    path("api/v1/admin/tenants/<slug:subdomain>/billing", billing.BillingView.as_view()),
+    path("api/v1/admin/tenants/<slug:subdomain>/billing/checkout", billing.CheckoutView.as_view()),
+    path("api/v1/admin/tenants/<slug:subdomain>/billing/portal", billing.PortalView.as_view()),
     path("api/v1/admin/tenants/<slug:subdomain>/", include("apps.bookings.admin_urls")),
-    path("api/v1/public/leads", leads.LeadView.as_view()),
+    path("api/v1/billing/stripe-webhook", billing.WebhookView.as_view()),
+    path("api/v1/auth/signup", billing.SignupView.as_view()),
     path("api/v1/auth/csrf", auth_api.CsrfView.as_view()),
     path("api/v1/auth/login", auth_api.LoginView.as_view()),
     path("api/v1/auth/login/code", auth_api.LoginCodeView.as_view()),
