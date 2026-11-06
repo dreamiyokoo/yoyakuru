@@ -28,7 +28,7 @@ export default defineConfig({
       command: `npm run build && npm run start -- -p ${frontendPort}`,
       url: `http://localhost:${frontendPort}/`,
       reuseExistingServer: !process.env.CI,
-      env: { BACKEND_INTERNAL_URL: `http://localhost:${backendPort}`, NEXT_PUBLIC_BASE_DOMAIN: "localhost" },
+      env: { BACKEND_INTERNAL_URL: `http://localhost:${backendPort}`, NEXT_PUBLIC_BASE_DOMAIN: "localhost", ADMIN_APP_URL: `http://app.localhost:${frontendPort}` },
       timeout: 240_000,
     },
   ],

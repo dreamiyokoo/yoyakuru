@@ -18,6 +18,7 @@ REST_FRAMEWORK = {
         "public_hold": "10000/hour",
         "public_token": "10000/min",
         "login": "10000/min",
+        "signup": "10000/hour",
         "public_chat": "10000/hour",
     },
 }

@@ -17,6 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.billing.models import usable as billing_usable
 from apps.core import two_factor
 from apps.stores.models import Membership, RecurringBreak, Role, Service, Staff, TimeOff
 from apps.tenants.models import Tenant
@@ -38,6 +39,8 @@ from .tasks import queue_email
 
 class TenantAdminView(APIView):
     permission_classes = [IsAuthenticated]
+    # True なら、月額の支払いが済んでいなくても使える（お支払いの画面）
+    allow_unpaid = False
 
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
@@ -51,6 +54,8 @@ class TenantAdminView(APIView):
             raise PermissionDenied("この店舗の管理権限がありません")
         if membership.role == Role.OWNER and not two_factor.enabled_for(request.user):
             raise PermissionDenied("オーナーは二段階認証の設定が必要です", code="two_factor_required")
+        if not self.allow_unpaid and not billing_usable(tenant):
+            raise PermissionDenied("お支払いの登録が必要です", code="payment_required")
         self.tenant, self.membership = tenant, membership
 
     @property

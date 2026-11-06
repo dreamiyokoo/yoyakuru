@@ -1,5 +1,5 @@
 import { request } from "./api";
-import type { AdminBooking, CalendarDay, Me, Options, Role, TimeOff } from "./adminTypes";
+import type { AdminBooking, Billing, CalendarDay, Me, Options, Role, TimeOff } from "./adminTypes";
 
 const AUTH = "/api/v1/auth";
 
@@ -56,6 +56,12 @@ export interface Applied<T> {
 
 export const adminApi = {
   me: () => request<Me>(`${AUTH}/me`),
+  signup: (body: { store_name: string; subdomain: string; name: string; email: string; password: string }) =>
+    mutate<Me>(`${AUTH}/signup`, "POST", body),
+  billing: (sub: string, checkoutSession?: string | null) =>
+    request<Billing>(`${base(sub)}/billing?${qs({ checkout_session: checkoutSession })}`),
+  checkout: (sub: string) => mutate<{ url: string }>(`${base(sub)}/billing/checkout`, "POST"),
+  billingPortal: (sub: string) => mutate<{ url: string }>(`${base(sub)}/billing/portal`, "POST"),
   /** パスワードが合っていて二段階認証が有効なら { two_factor_required: true } が返る。 */
   login: (email: string, password: string) => mutate<Me | { two_factor_required: true }>(`${AUTH}/login`, "POST", { email, password }),
   loginCode: (code: string) => mutate<Me>(`${AUTH}/login/code`, "POST", { code }),

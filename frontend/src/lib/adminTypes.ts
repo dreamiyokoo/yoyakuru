@@ -7,6 +7,19 @@ export interface Membership {
   name: string;
   role: Role;
   staff_id: number | null;
+  /** 月額の支払いが済んでいない（お支払い以外の管理画面は使えない） */
+  billing_required: boolean;
+  /** Stripe で支払い情報を管理する店舗（セルフ登録の店舗） */
+  billing_managed: boolean;
+}
+
+export interface Billing {
+  status: string;
+  usable: boolean;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  manageable: boolean;
+  configured: boolean;
 }
 
 export interface Me {

@@ -5,6 +5,8 @@ export class ApiError extends Error {
     public status: number,
     public code: string,
     message: string,
+    /** 応答の本文（入力欄ごとのエラーなど） */
+    public body?: unknown,
   ) {
     super(message);
   }
@@ -27,7 +29,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // 自前のエラーは message、Django REST framework の権限エラー等は detail に説明が入る
     const message =
       typeof body?.message === "string" ? body.message : typeof body?.detail === "string" ? body.detail : FALLBACK_MESSAGE;
-    throw new ApiError(res.status, typeof body?.code === "string" ? body.code : "error", message);
+    throw new ApiError(res.status, typeof body?.code === "string" ? body.code : "error", message, body);
   }
   return body as T;
 }

@@ -40,5 +40,13 @@ export default async function Home() {
   }
 
   // 体験用店舗の予約ページ（例：https://fushimi.dreami.blog/）。未設定なら「準備中」と表示する
-  return <LandingPage demoUrl={process.env.DEMO_STORE_URL || undefined} />;
+  const adminUrl = process.env.ADMIN_APP_URL || `https://app.${process.env.NEXT_PUBLIC_BASE_DOMAIN ?? "dreami.blog"}`;
+  return (
+    <LandingPage
+      demoUrl={process.env.DEMO_STORE_URL || undefined}
+      signupUrl={`${adminUrl}/signup`}
+      // Stripe の価格と同じ表記にする（例：月額1,980円（税込））。未設定なら申し込み画面で確認してもらう
+      priceLabel={process.env.PLAN_PRICE_LABEL || undefined}
+    />
+  );
 }

@@ -21,7 +21,7 @@ vi.mock("next/navigation", () => ({
 const ME: Me = { two_factor_enabled: true, two_factor_required: true,
   email: "owner@example.com",
   name: "院長",
-  memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10 }],
+  memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }],
 };
 const OPTIONS = { tenant: { subdomain: "fushimi", name: "伏見整体院" }, role: "owner", staff_id: 10, services: STORE.services, staff: STORE.staff };
 const booking = (over: Partial<AdminBooking> = {}): AdminBooking => ({
@@ -101,7 +101,7 @@ describe("login and session", () => {
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/bookings"));
   });
   it("logs out and lets the user switch stores", async () => {
-    const two: Me = { ...ME, memberships: [...ME.memberships, { subdomain: "kyoto", name: "京都店", role: "staff", staff_id: 11 }] };
+    const two: Me = { ...ME, memberships: [...ME.memberships, { subdomain: "kyoto", name: "京都店", role: "staff", staff_id: 11, billing_required: false, billing_managed: false }] };
     const calls = api((url) => (url.includes("/bookings?") ? { body: [] } : url.endsWith("/logout") ? { body: {} } : undefined), two);
     const user = userEvent.setup();
     withAdmin(<BookingListPage today="2026-11-11" />);

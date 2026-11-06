@@ -1,13 +1,12 @@
 import type { ReactNode } from "react";
 import { ArrowRight, Calendar, Chat, Check, ChevronDown, Clock, Layers, Minus, Phone, PhoneOff } from "./icons";
-import { LeadForm } from "./LeadForm";
 
 /**
  * サービス紹介ページ（LP）。
  * design-system/yoyakuru/pages/landing.md の構成・色・書体に合わせる。
  * demoUrl：チャット予約を試せる体験用店舗のURL（未設定なら「準備中」と表示）。
  */
-export function LandingPage({ demoUrl }: { demoUrl?: string }) {
+export function LandingPage({ demoUrl, signupUrl, priceLabel }: { demoUrl?: string; signupUrl: string; priceLabel?: string }) {
   return (
     <div className="bg-card text-ink">
       <header className="sticky top-0 z-20 border-b border-line/70 bg-card/90 backdrop-blur">
@@ -22,12 +21,14 @@ export function LandingPage({ demoUrl }: { demoUrl?: string }) {
             <a href="#demo" className="transition-colors duration-200 hover:text-button">体験</a>
             <a href="#faq" className="transition-colors duration-200 hover:text-button">よくある質問</a>
           </nav>
-          <CtaLink small>先行導入に申し込む</CtaLink>
+          <CtaLink href={signupUrl} small>
+            申し込む
+          </CtaLink>
         </div>
       </header>
 
       <main id="top">
-        <Hero />
+        <Hero signupUrl={signupUrl} />
 
         <Section eyebrow="お悩み" title="こんなこと、ありませんか？" tone="plain">
           <div className="grid gap-4 md:grid-cols-3">
@@ -147,13 +148,14 @@ export function LandingPage({ demoUrl }: { demoUrl?: string }) {
           </div>
         </Section>
 
-        <Section eyebrow="料金" title="先行導入の店舗を募集中" tone="plain">
-          <div className="flex flex-col gap-4 rounded-2xl border-2 border-primary/40 bg-surface p-6 md:flex-row md:items-center md:justify-between md:p-8">
-            <div className="leading-relaxed">
-              <p>料金は、先行導入の店舗のご意見を伺いながら決めています。正式な料金は、公開時にお知らせします。</p>
-              <p className="mt-2 font-bold">先行導入は、少数の店舗に限って行います。</p>
+        <Section id="price" eyebrow="料金" title="月額制で、すぐに始められます" tone="plain">
+          <div className="flex flex-col gap-5 rounded-2xl border-2 border-primary/40 bg-surface p-6 md:flex-row md:items-center md:justify-between md:p-8">
+            <div className="flex flex-col gap-2 leading-relaxed">
+              {priceLabel ? <p className="font-display text-3xl font-bold text-button">{priceLabel}</p> : null}
+              <p>スタッフの人数で料金は増えません。お支払いはクレジットカードで、いつでも解約できます。</p>
+              {priceLabel ? null : <p className="text-sub">料金は、お申し込みの画面でご確認いただけます。</p>}
             </div>
-            <CtaLink>先行導入に申し込む</CtaLink>
+            <CtaLink href={signupUrl}>申し込む</CtaLink>
           </div>
         </Section>
 
@@ -163,7 +165,7 @@ export function LandingPage({ demoUrl }: { demoUrl?: string }) {
               ["今の電話番号は変わりますか？", "変わりません。お店の電話から、AI専用の番号へ転送します。"],
               ["ご年配のお客様でも使えますか？", "電話はこれまでどおりかけるだけです。Webでは会員登録なしで予約できます。"],
               ["AIが答えられないときは？", "折り返しの依頼として受け付け、店舗にお知らせします。"],
-              ["契約の条件は？", "正式公開の時にお知らせします。先行導入の条件は、個別にご相談します。"],
+              ["契約の期間や解約は？", "月額制です。管理画面の「アカウント」から、いつでも解約の手続きができます。"],
             ].map(([q, a]) => (
               <details key={q} className="group rounded-2xl bg-card px-5 shadow-sm">
                 <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 py-4 font-bold [&::-webkit-details-marker]:hidden">
@@ -180,28 +182,26 @@ export function LandingPage({ demoUrl }: { demoUrl?: string }) {
         </Section>
 
         <section id="apply" aria-labelledby="apply-title" className="bg-ink text-white">
-          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 md:grid-cols-2 md:py-24">
+          <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 md:grid-cols-2 md:items-center md:py-24">
             <div className="flex flex-col gap-4">
               <p className="text-sm font-bold text-line">お申し込み</p>
               <h2 id="apply-title" className="font-display text-3xl font-bold leading-tight md:text-4xl">
-                先行導入に申し込む
+                今日から、AIに受付を任せる
               </h2>
               <p className="leading-relaxed text-white/85">
-                導入のご相談から設定まで、私たちが一緒に進めます。お申し込みのあと、担当者からメールでご連絡します。
+                登録からお支払いまで、画面の案内に沿って数分で終わります。お店の設定は、AIと会話するだけで進められます。
               </p>
-              <ul className="mt-2 flex flex-col gap-3">
-                {["お申し込みは1分で完了", "設定はAIとの会話で", "今の電話番号はそのまま"].map((t) => (
+            </div>
+            <div className="flex flex-col gap-5 rounded-2xl bg-card p-6 text-ink shadow-xl md:p-8">
+              <ol className="flex flex-col gap-3">
+                {["お店の名前とメールアドレスで登録", "ログインを守る二段階認証を設定", "クレジットカードでお支払いを登録"].map((t, i) => (
                   <li key={t} className="flex items-center gap-3 font-bold">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-white">
-                      <Check className="h-4 w-4" />
-                    </span>
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-button text-sm text-white">{i + 1}</span>
                     {t}
                   </li>
                 ))}
-              </ul>
-            </div>
-            <div className="rounded-2xl bg-card p-6 text-ink shadow-xl md:p-8">
-              <LeadForm />
+              </ol>
+              <CtaLink href={signupUrl}>登録して始める</CtaLink>
             </div>
           </div>
         </section>
@@ -219,7 +219,7 @@ export function LandingPage({ demoUrl }: { demoUrl?: string }) {
   );
 }
 
-function Hero() {
+function Hero({ signupUrl }: { signupUrl: string }) {
   return (
     <section className="relative overflow-hidden bg-surface">
       <div aria-hidden className="absolute -right-40 -top-40 h-[28rem] w-[28rem] rounded-full bg-line/40 blur-3xl" />
@@ -228,7 +228,7 @@ function Hero() {
         <div className="flex flex-col gap-6">
           <p className="inline-flex w-fit items-center gap-2 rounded-full bg-card px-4 py-1.5 text-sm font-bold text-accent shadow-sm">
             <span aria-hidden className="h-2 w-2 rounded-full bg-accent" />
-            整体院・治療院向け　先行導入の店舗を募集中
+            整体院・治療院向け　AI予約受付
           </p>
           <h1 className="font-display text-[1.625rem] font-bold leading-[1.3] min-[360px]:text-[1.75rem] min-[380px]:text-[2rem] md:text-[2.5rem] lg:text-[2.625rem] xl:text-5xl xl:leading-[1.25]">
             <span className="whitespace-nowrap">施術中でも、</span>
@@ -241,7 +241,7 @@ function Hero() {
             AIが電話とチャットで予約を受け付け、ひとつの予約台帳にまとめます。スタッフとベッドの空きを同時に確認するので、二重予約の心配もありません。
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <CtaLink>先行導入に申し込む</CtaLink>
+            <CtaLink href={signupUrl}>申し込む</CtaLink>
             <a
               href="#demo"
               className="inline-flex min-h-12 cursor-pointer items-center justify-center rounded-xl border-[1.5px] border-button bg-card px-6 font-bold text-button transition-colors duration-200 hover:bg-surface"
@@ -367,10 +367,10 @@ function Feature({ icon, title, soon, children }: { icon: ReactNode; title: stri
   );
 }
 
-function CtaLink({ children, small }: { children: ReactNode; small?: boolean }) {
+function CtaLink({ href, children, small }: { href: string; children: ReactNode; small?: boolean }) {
   return (
     <a
-      href="#apply"
+      href={href}
       className={`inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-button font-bold text-white shadow-sm transition-colors duration-200 hover:bg-button-hover ${small ? "min-h-11 px-4 text-sm" : "min-h-12 px-6"}`}
     >
       {children}
@@ -379,7 +379,7 @@ function CtaLink({ children, small }: { children: ReactNode; small?: boolean }) 
   );
 }
 
-/** まだ提供していない機能の印（先行導入の期間中に順次提供）。 */
+/** まだ提供していない機能の印（順次提供）。 */
 function Soon() {
   return <span className="ml-2 whitespace-nowrap rounded-full bg-muted px-2 py-0.5 align-middle text-xs font-bold text-sub">準備中</span>;
 }

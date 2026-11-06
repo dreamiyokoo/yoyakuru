@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => nav.pathname,
 }));
 
-const owner: Me = { email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10 }] } as Me;
+const owner: Me = { email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] } as Me;
 
 function csrf(url: string) {
   if (url.endsWith("/auth/csrf")) {

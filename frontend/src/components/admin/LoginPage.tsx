@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
@@ -81,6 +82,14 @@ export function LoginPage() {
           </button>
         ) : null}
       </form>
+      {needsCode ? null : (
+        <p className="text-center text-sm text-sub">
+          はじめての方は{" "}
+          <Link href="/signup" className="font-bold text-button underline">
+            新規登録
+          </Link>
+        </p>
+      )}
     </main>
   );
 }

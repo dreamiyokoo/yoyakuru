@@ -9,6 +9,7 @@
 | `apps.tenants` | 店舗（Tenant）と受付ルール。店舗のデータの基底クラス `TenantOwnedModel` |
 | `apps.stores` | 担当者、設備、サービス、営業時間、臨時休業・特別営業、勤務と例外、休憩、休み、祝日、店舗の所属 |
 | `apps.bookings` | 空き判定、予約（仮押さえ・確定・取消）、履歴、メール、予定ファイル、公開API |
+| `apps.billing` | 店舗のセルフ登録と、Stripe の月額契約（BILL-01、BILL-04） |
 
 運営者は `admin.` の管理画面（Unfold）から、店舗の設定と予約を確認・編集できる。
 
@@ -19,7 +20,6 @@
 | GET | `tenants/{店舗名}/` | 店舗・サービス・担当者 |
 | GET | `tenants/{店舗名}/availability?service=&date=&customer_type=&staff=` | 空き枠 |
 | POST | `tenants/{店舗名}/bookings` | 15分の仮押さえ。確認メールを送る |
-| POST | `leads` | LPの先行導入の申し込み（ログイン不要、回数制限あり、ボット対策の隠し欄）。管理サイトで一覧し、`LEAD_NOTIFY_EMAIL` があれば運営にメールで知らせる |
 | POST | `tenants/{店舗名}/chat` | 自由入力の質問・予約の希望（CHAT-03〜07）。AIは店舗の登録内容（お客様への案内を含む）だけをもとに答え、メニュー・担当・日付の候補はサーバーで検証して空き枠と一緒に返す。予約の確定は通常の確認画面で行う。返す `chat_token` を仮押さえに付けると、AIが関わった予約（`ai_assisted`）として数える。APIキーがなければAIを使わず、選択肢と電話を案内する |
 | POST | `bookings/confirm` | 確認メールのトークンで確定。予定ファイル付きのメールを送る |
 | GET | `bookings/{token}` | 予約内容と取消の締切 |
@@ -35,7 +35,11 @@
 | POST | `/api/v1/auth/login`・`logout` | ログイン・ログアウト（セッション） |
 | POST | `/api/v1/auth/login/code` | 二段階認証の2段目。パスワードが合うと `login` は `{two_factor_required: true}` を返し、ここで認証アプリの6桁（または回復コード）を受け付ける。5分以内・同じコードの使い回し不可 |
 | POST | `/api/v1/auth/2fa/setup`・`2fa/confirm` | 二段階認証の設定。QRコード（SVG）と鍵を返し、6桁で確認すると有効になり、回復コード8件を1回だけ返す。オーナーは必須（LOGIN-07）で、設定が済むまで店舗の管理APIは403 |
-| GET | `/api/v1/auth/me` | ログインユーザーと所属店舗 |
+| GET | `/api/v1/auth/me` | ログインユーザーと所属店舗（店舗ごとに `billing_required`：支払いが済んでいない） |
+| POST | `/api/v1/auth/signup` | 店舗のセルフ登録（ログイン不要、CSRF、回数制限）。店舗・オーナー・未払いの契約を作り、ログインした状態にする。この後、二段階認証 → お支払いの順に進む |
+| GET | `.../billing?checkout_session=` | 契約の状態（オーナーのみ、未払いでも使える）。支払い画面から戻ったときは、Webhook を待たずに Stripe と合わせる |
+| POST | `.../billing/checkout`・`billing/portal` | Stripe の支払い画面（月額の登録）と、カードの変更・領収書・解約の画面のURL |
+| POST | `/api/v1/billing/stripe-webhook` | Stripe からの知らせ（署名を確認）。毎回 Stripe から今の契約を取り直して合わせるので、重複や順番の入れ替わりに強い |
 | GET | `/api/v1/admin/tenants/{店舗名}/options` | フォーム用のサービス・担当者と自分の権限 |
 | GET・POST | `.../bookings` | 予約一覧（期間・担当で絞り込み）、手入力の予約（確定で作成） |
 | GET | `.../bookings/{id}` | 予約の詳細と履歴 |
@@ -82,3 +86,17 @@ pip-audit -r requirements-dev.txt
 1. 電話などで本人であることを確かめる（登録の氏名・電話番号・最近の予約内容など）。
 2. 管理サイト（Django admin）の「二段階認証」で、その利用者の行を削除する。鍵と回復コードは表示されない。
 3. 本人は次のログインがパスワードだけになり、オーナーなので二段階認証の設定画面に進む。
+
+## お支払い（Stripe）
+
+セルフ登録した店舗は、支払いが済むまで管理画面（お支払い以外）と公開予約ページを使えない。
+運営が管理サイトで作った店舗（契約の記録がない店舗）は、支払いなしで使える。
+`past_due`（Stripe が支払いをやり直している間）はそのまま使え、`canceled`・`unpaid` などになると止まる。
+
+1. Stripe で月額の商品と価格を作り、価格のID（`price_...`）を `STRIPE_PRICE_ID` に入れる
+2. API キー（テスト中は `sk_test_...`）を `STRIPE_SECRET_KEY` に入れる
+3. Webhook の送信先に `https://api.<ドメイン>/api/v1/billing/stripe-webhook` を登録し、
+   `checkout.session.completed` と `customer.subscription.created`・`updated`・`deleted` を選ぶ。署名の鍵を `STRIPE_WEBHOOK_SECRET` に入れる
+4. カスタマーポータル（カードの変更・解約）を Stripe の設定で有効にする
+5. LP の料金欄の表記を `PLAN_PRICE_LABEL` に入れる（Stripe の価格と同じにする）
+

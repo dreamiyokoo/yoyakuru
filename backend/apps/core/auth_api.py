@@ -8,6 +8,7 @@
 import time
 
 from django.contrib.auth import authenticate, get_user_model, login, logout
+from django.core.exceptions import ObjectDoesNotExist
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from rest_framework import serializers
@@ -24,10 +25,22 @@ PENDING_KEY = "two_factor_pending"
 PENDING_SECONDS = 300
 
 
+def _subscription(tenant):
+    try:
+        return tenant.subscription
+    except ObjectDoesNotExist:
+        return None
+
+
+def _usable(tenant) -> bool:
+    sub = _subscription(tenant)
+    return sub is None or sub.usable
+
+
 def me_payload(user) -> dict:
     memberships = (
         Membership.objects.filter(user=user, is_active=True, tenant__is_active=True)
-        .select_related("tenant")
+        .select_related("tenant", "tenant__subscription")
         .order_by("tenant__name")
     )
     return {
@@ -36,7 +49,16 @@ def me_payload(user) -> dict:
         "email": user.email,
         "name": user.get_full_name() or user.get_username(),
         "memberships": [
-            {"subdomain": m.tenant.subdomain, "name": m.tenant.name, "role": m.role, "staff_id": m.staff_id}
+            {
+                "subdomain": m.tenant.subdomain,
+                "name": m.tenant.name,
+                "role": m.role,
+                "staff_id": m.staff_id,
+                # 支払いが済むまで、お支払い以外の管理画面は使えない
+                "billing_required": not _usable(m.tenant),
+                # Stripe で支払い情報を管理できるか（セルフ登録の店舗）
+                "billing_managed": _subscription(m.tenant) is not None,
+            }
             for m in memberships
         ],
     }

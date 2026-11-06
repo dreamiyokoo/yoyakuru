@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/bookings",
 }));
 
-const base: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10 }] };
+const base: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
 
 function csrf(url: string) {
   if (url.endsWith("/auth/csrf")) {

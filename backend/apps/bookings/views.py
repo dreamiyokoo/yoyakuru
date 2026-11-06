@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from apps.billing.models import usable_tenants_q
 from apps.stores.models import Service, Staff
 from apps.tenants.models import Tenant
 
@@ -46,7 +47,8 @@ class PublicView(APIView):
 
 def _store(subdomain: str) -> Tenant:
     """停止中・存在しない店舗は404（TENANT-02）。"""
-    return get_object_or_404(Tenant, subdomain=subdomain, is_active=True)
+    # 支払いが済んでいない（セルフ登録の直後・解約後の）店舗は公開しない
+    return get_object_or_404(Tenant.objects.filter(usable_tenants_q()), subdomain=subdomain, is_active=True)
 
 
 class StoreView(PublicView):
@@ -230,7 +232,9 @@ class StaffFeedView(PublicView):
 
     def get(self, request, token):
         staff = (
-            Staff.objects.filter(calendar_token=token, is_active=True, tenant__is_active=True)
+            Staff.objects.filter(
+                usable_tenants_q("tenant__"), calendar_token=token, is_active=True, tenant__is_active=True
+            )
             .select_related("tenant")
             .first()
         )

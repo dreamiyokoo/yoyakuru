@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import crypto from "node:crypto";
+import { totp } from "./totp";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -7,18 +7,6 @@ const APP = "http://app.localhost:3000";
 const PASSWORD = "e2e-demo-pass";
 
 const TOTP_SECRET = "JBSWY3DPEHPK3PXP"; // playwright.config.ts の DEMO_TOTP_SECRET と同じ
-
-/** 認証アプリと同じ6桁のコード（RFC 6238）。 */
-function totp(secret: string, at = Date.now()): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  const bits = [...secret].map((c) => alphabet.indexOf(c).toString(2).padStart(5, "0")).join("");
-  const key = Buffer.from(bits.match(/.{8}/g)!.map((b) => parseInt(b, 2)));
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(at / 30000)));
-  const h = crypto.createHmac("sha1", key).update(counter).digest();
-  const o = h[h.length - 1] & 0xf;
-  return String((h.readUInt32BE(o) & 0x7fffffff) % 1_000_000).padStart(6, "0");
-}
 
 let lastStep = 0;
 
