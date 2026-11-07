@@ -76,6 +76,25 @@ describe("adminApi", () => {
   });
 });
 
+describe("store that needs payment", () => {
+  it("keeps the store switcher so a member can move to another store", async () => {
+    localStorage.setItem("yoyakuru.tenant", "komorebi");
+    const me: Me = {
+      ...ME,
+      memberships: [
+        { subdomain: "komorebi", name: "こもれび整体院", role: "staff", staff_id: null, billing_required: true, billing_managed: true },
+        ME.memberships[0],
+      ],
+    };
+    api((url) => (url.includes("/bookings?") ? { body: [] } : undefined), me);
+    withAdmin(<BookingListPage today="2026-11-11" />);
+    expect(await screen.findByText(/こもれび整体院 はまだ利用を開始していません/)).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText("店舗"), "fushimi");
+    expect(await screen.findByText("この期間の予約はありません")).toBeInTheDocument();
+    localStorage.clear();
+  });
+});
+
 describe("login and session", () => {
   it("redirects to login when signed out", async () => {
     api(() => undefined, null);

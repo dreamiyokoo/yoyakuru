@@ -13,7 +13,18 @@ import { Onboarding } from "./Onboarding";
  * 月額の支払いが済んでいない店舗の案内（BILL-01）。
  * オーナーは Stripe の支払い画面へ進む。支払い画面から戻ったら（?checkout_session=）、その場で状態を確かめる。
  */
-export function BillingRequired({ membership, onPaid, onSignOut }: { membership: Membership; onPaid: (me: Me) => void; onSignOut?: () => void }) {
+export function BillingRequired({
+  membership,
+  onPaid,
+  onSignOut,
+  switcher,
+}: {
+  membership: Membership;
+  onPaid: (me: Me) => void;
+  onSignOut?: () => void;
+  /** 複数の店舗に所属するとき、ほかの店舗へ移れるようにする */
+  switcher?: React.ReactNode;
+}) {
   const owner = membership.role === "owner";
   // 支払い画面から戻ったときの印。管理画面はログインの確認後にブラウザだけで描くので、ここで URL を読める
   const [session] = useState(() =>
@@ -66,7 +77,7 @@ export function BillingRequired({ membership, onPaid, onSignOut }: { membership:
 
   if (!owner) {
     return (
-      <Onboarding title={`${membership.name} はまだ利用を開始していません`} onSignOut={onSignOut}>
+      <Onboarding title={`${membership.name} はまだ利用を開始していません`} onSignOut={onSignOut} extra={switcher}>
         <p className="leading-relaxed">オーナーがお支払いを登録すると、使えるようになります。</p>
       </Onboarding>
     );
@@ -78,6 +89,7 @@ export function BillingRequired({ membership, onPaid, onSignOut }: { membership:
       title="お支払いを登録して、利用を始めましょう"
       lead={<p>{membership.name} の月額料金を、クレジットカードで登録します。</p>}
       onSignOut={onSignOut}
+      extra={switcher}
     >
       <div className="flex flex-col gap-1 rounded-xl bg-surface px-4 py-3">
         <span className="text-sm text-sub">料金</span>

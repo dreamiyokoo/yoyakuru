@@ -6,12 +6,29 @@ const STEPS = ["登録", "二段階認証", "お支払い"];
  * 利用開始までの画面（登録 → 二段階認証 → お支払い）の枠。
  * 管理画面のタブは、使えるようになるまで出さない。今どこにいるかを常に示す（UX: progress indicators）。
  */
-export function Onboarding({ step, title, lead, onSignOut, children }: { step?: number; title: string; lead?: ReactNode; onSignOut?: () => void; children: ReactNode }) {
+export function Onboarding({
+  step,
+  title,
+  lead,
+  onSignOut,
+  extra,
+  children,
+}: {
+  step?: number;
+  title: string;
+  lead?: ReactNode;
+  onSignOut?: () => void;
+  /** ヘッダーに置く部品（複数の店舗に所属するひとの店舗の切り替え） */
+  extra?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <div className="flex min-h-dvh flex-col bg-surface">
-      <header className="flex items-center justify-between px-4 py-3">
+      <header className="flex items-center gap-3 px-4 py-3">
         {/* eslint-disable-next-line @next/next/no-img-element -- 文字を含むSVGロゴは最適化の対象外 */}
         <img src="/brand/logo.svg" alt="ヨヤクル" width={116} height={32} className="h-8 w-auto" />
+        <span className="flex-1" />
+        {extra}
         {onSignOut ? (
           <button type="button" onClick={onSignOut} className="min-h-11 cursor-pointer px-2 text-sm text-sub underline">
             ログアウト

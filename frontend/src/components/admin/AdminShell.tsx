@@ -22,6 +22,21 @@ export function AdminShell({ title, action, children }: { title: string; action?
   const { me, membership, setTenant, signOut, signedIn } = useAdmin();
   const pathname = usePathname();
   if (!me) return null;
+  const switcher =
+    me.memberships.length > 1 ? (
+      <select
+        aria-label="店舗"
+        className="rounded-md border border-line px-2 py-1 text-sm"
+        value={membership?.subdomain}
+        onChange={(e) => setTenant(e.target.value)}
+      >
+        {me.memberships.map((m) => (
+          <option key={m.subdomain} value={m.subdomain}>
+            {m.name}
+          </option>
+        ))}
+      </select>
+    ) : null;
   // 利用を始めるまで（二段階認証・お支払い）は、管理画面のタブを出さずに手順だけを見せる
   if (me.two_factor_required && !me.two_factor_enabled) {
     return (
@@ -30,26 +45,13 @@ export function AdminShell({ title, action, children }: { title: string; action?
       </Onboarding>
     );
   }
-  if (membership?.billing_required) return <BillingRequired membership={membership} onPaid={signedIn} onSignOut={() => void signOut()} />;
+  if (membership?.billing_required) return <BillingRequired membership={membership} onPaid={signedIn} onSignOut={() => void signOut()} switcher={switcher} />;
   return (
     <div className="mx-auto flex min-h-dvh max-w-3xl flex-col bg-card">
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-card px-4 py-3">
         <h1 className="flex-1 font-display text-lg font-bold">{title}</h1>
         {action}
-        {me.memberships.length > 1 ? (
-          <select
-            aria-label="店舗"
-            className="rounded-md border border-line px-2 py-1 text-sm"
-            value={membership?.subdomain}
-            onChange={(e) => setTenant(e.target.value)}
-          >
-            {me.memberships.map((m) => (
-              <option key={m.subdomain} value={m.subdomain}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        ) : null}
+        {switcher}
         <Link href="/account" className="flex min-h-11 items-center text-sm text-sub">
           アカウント
         </Link>
