@@ -6,6 +6,7 @@ import { formatDateKey, toDateKey } from "@/lib/format";
 import { Button } from "../../ui/Button";
 import { Field } from "../../ui/Field";
 import { useLoad } from "../useLoad";
+import { ChevronLeft } from "../../ui/icons";
 import { TimeSelect, WEEKDAYS, hm, inputClass, useSettingChange } from "./useSettingChange";
 
 export interface StaffSetting {
@@ -104,8 +105,9 @@ function ShiftEditor({ sub, staff, today, onBack }: { sub: string; staff: StaffS
   const upcoming = shifts.data.exceptions.filter((e) => e.date >= today);
   return (
     <>
-      <button type="button" className="min-h-11 self-start text-sm text-sub" onClick={onBack}>
-        ‹ 担当者の一覧へ
+      <button type="button" className="flex min-h-11 cursor-pointer items-center gap-1 self-start text-sm text-sub" onClick={onBack}>
+        <ChevronLeft className="h-4 w-4" />
+        担当者の一覧へ
       </button>
       <h2 className="font-bold">{staff.display_name}の勤務</h2>
       {ui}

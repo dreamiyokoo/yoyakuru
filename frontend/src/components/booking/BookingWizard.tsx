@@ -8,6 +8,7 @@ import { Button } from "../ui/Button";
 import { ChoiceCard, Chip } from "../ui/Choice";
 import { Field } from "../ui/Field";
 import { Notice, Summary } from "../ui/Notice";
+import { ChevronLeft, ChevronRight } from "../ui/icons";
 import { Screen } from "../ui/Screen";
 import { ChatBox, type Conditions } from "./ChatBox";
 
@@ -202,7 +203,15 @@ export function BookingWizard({ store, today = toDateKey(new Date()), newKey = (
               );
             })}
           </div>
-          <p className="text-xs text-sub">料金は税込です。</p>
+          <p className="text-sm text-sub">料金は税込です。</p>
+          {store.phone ? (
+            <p className="text-sm text-sub">
+              お電話でのご予約・ご相談：
+              <a href={`tel:${store.phone.replace(/[^0-9+]/g, "")}`} className="font-bold text-button underline">
+                {store.phone}
+              </a>
+            </p>
+          ) : null}
         </>
       )}
 
@@ -343,20 +352,22 @@ function DateTimePicker(p: PickerProps) {
       <div className="flex items-center justify-between">
         <button
           type="button"
-          className="min-h-11 rounded-md border border-line px-3 text-sm disabled:opacity-40"
+          className="flex min-h-11 cursor-pointer items-center gap-1 rounded-md border border-line px-3 text-sm transition-colors duration-150 hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
           disabled={p.weekStart <= p.today}
           onClick={() => p.onWeekChange(addDays(p.weekStart, -7))}
         >
-          ‹ 前の週
+          <ChevronLeft className="h-4 w-4" />
+          前の週
         </button>
         <span className="text-sm font-bold">{formatDateKey(p.weekStart).replace(/（.）/, "")}〜</span>
         <button
           type="button"
-          className="min-h-11 rounded-md border border-line px-3 text-sm disabled:opacity-40"
+          className="flex min-h-11 cursor-pointer items-center gap-1 rounded-md border border-line px-3 text-sm transition-colors duration-150 hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
           disabled={addDays(p.weekStart, 7) > lastDay}
           onClick={() => p.onWeekChange(addDays(p.weekStart, 7))}
         >
-          次の週 ›
+          次の週
+          <ChevronRight className="h-4 w-4" />
         </button>
       </div>
       <div role="radiogroup" aria-label="日付" className="grid grid-cols-7 gap-1">

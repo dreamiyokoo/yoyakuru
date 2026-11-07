@@ -83,7 +83,7 @@ describe("two-factor login", () => {
     await userEvent.type(screen.getByLabelText("認証アプリに表示された6桁"), "123456");
     await userEvent.click(screen.getByRole("button", { name: "確認して有効にする" }));
     expect(await screen.findByText("aaaaa-11111")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "保存しました" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存しました。次へ進む" }));
     expect(await screen.findByText(/今日/)).toBeInTheDocument();
   });
 

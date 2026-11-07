@@ -27,3 +27,15 @@ export async function requireTenant(): Promise<string> {
   if (site !== "tenant" || !subdomain) notFound();
   return subdomain;
 }
+
+/** LP に出す料金の表記（バックエンドが Stripe の価格から作る）。取れなければ出さない。 */
+export async function planLabel(): Promise<string | undefined> {
+  try {
+    const res = await fetch(`${BACKEND_INTERNAL_URL}/api/v1/public/plan`, { next: { revalidate: 600 } });
+    if (!res.ok) return undefined;
+    const body = (await res.json()) as { price_label?: string };
+    return body.price_label || undefined;
+  } catch {
+    return undefined;
+  }
+}

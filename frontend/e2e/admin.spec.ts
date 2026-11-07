@@ -42,7 +42,7 @@ function openDay(): string {
 
 test("オーナーが電話の予約を登録し、取消できる", async ({ page }) => {
   await login(page, "owner@fushimi.example");
-  await page.getByRole("link", { name: "＋ 追加" }).click();
+  await page.getByRole("link", { name: "追加" }).click();
   await page.getByLabel("日付").fill(openDay());
   await page.getByRole("radiogroup", { name: "開始時刻" }).getByRole("radio").first().click();
   await page.getByLabel("お名前").fill("電話のお客様");

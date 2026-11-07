@@ -30,6 +30,19 @@ async function goToConfirm(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("BookingWizard", () => {
+  it("offers the store phone and marks the chosen menu with a check", async () => {
+    mockFetch(() => ({ body: { slots: [] } }));
+    render(<BookingWizard store={STORE} />);
+    expect(screen.getByRole("link", { name: "075-000-0000" })).toHaveAttribute("href", "tel:0750000000");
+    const menu = screen.getByRole("radio", { name: "全身調整" });
+    expect(menu.querySelector("svg")).toBeNull();
+    await userEvent.click(menu);
+    expect(menu).toHaveAttribute("aria-checked", "true");
+    expect(menu.querySelector("svg")).not.toBeNull();
+    render(<BookingWizard store={{ ...STORE, phone: "" }} />);
+    expect(screen.getAllByRole("link", { name: /075/ })).toHaveLength(1);
+  });
+
   it("books through all steps", async () => {
     const calls = mockFetch((url) => (url.includes("availability") ? { body: { slots: [slot("10:00"), slot("10:30")] } } : { status: 201, body: {} }));
     const user = userEvent.setup();
@@ -96,13 +109,13 @@ describe("BookingWizard", () => {
     await user.click(screen.getByRole("button", { name: "次へ：担当を選ぶ" }));
     expect(screen.getByRole("radio", { name: "Bさん" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "次へ：日時を選ぶ" }));
-    expect(screen.getByRole("button", { name: "‹ 前の週" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "前の週" })).toBeDisabled();
     await user.click(screen.getByRole("radio", { name: "11月12日（木）" }));
     expect(await screen.findByText("この日は空きがありません。別の日をお選びください。")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "次の週 ›" }));
+    await user.click(screen.getByRole("button", { name: "次の週" }));
     await user.click(screen.getByRole("radio", { name: "11月18日（水）" }));
     await waitFor(() => expect(calls.at(-1)?.url).toContain("2026-11-18"));
-    await user.click(screen.getByRole("button", { name: "‹ 前の週" }));
+    await user.click(screen.getByRole("button", { name: "前の週" }));
     await user.click(screen.getByRole("button", { name: "戻る" }));
     await user.click(screen.getByRole("radio", { name: "指名なし（おまかせ）" }));
     await user.click(screen.getByRole("button", { name: "戻る" }));

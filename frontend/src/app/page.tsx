@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { BookingWizard } from "@/components/booking/BookingWizard";
 import { LandingPage } from "@/components/lp/LandingPage";
-import { currentSite, loadStore } from "@/lib/site";
+import { currentSite, loadStore, planLabel } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +45,7 @@ export default async function Home() {
     <LandingPage
       demoUrl={process.env.DEMO_STORE_URL || undefined}
       signupUrl={`${adminUrl}/signup`}
-      // Stripe の価格と同じ表記にする（例：月額1,980円（税込））。未設定なら申し込み画面で確認してもらう
-      priceLabel={process.env.PLAN_PRICE_LABEL || undefined}
+      priceLabel={await planLabel()}
     />
   );
 }

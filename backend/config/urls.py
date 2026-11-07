@@ -20,6 +20,7 @@ urlpatterns = [
     path("api/v1/admin/tenants/<slug:subdomain>/billing/portal", billing.PortalView.as_view()),
     path("api/v1/admin/tenants/<slug:subdomain>/", include("apps.bookings.admin_urls")),
     path("api/v1/billing/stripe-webhook", billing.WebhookView.as_view()),
+    path("api/v1/public/plan", billing.PlanView.as_view()),
     path("api/v1/auth/signup", billing.SignupView.as_view()),
     path("api/v1/auth/csrf", auth_api.CsrfView.as_view()),
     path("api/v1/auth/login", auth_api.LoginView.as_view()),

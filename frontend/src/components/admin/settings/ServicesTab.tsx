@@ -6,6 +6,7 @@ import { Button } from "../../ui/Button";
 import { Field } from "../../ui/Field";
 import { useLoad } from "../useLoad";
 import type { Resource } from "./ResourcesTab";
+import { ChevronRight } from "../../ui/icons";
 import { inputClass, useSettingChange } from "./useSettingChange";
 
 export interface ServiceSetting {
@@ -85,7 +86,7 @@ export function ServicesTab({ sub, staff }: { sub: string; staff: { id: number; 
                       {s.capacity > 1 ? `・定員${s.capacity}名` : ""}
                     </span>
                   </span>
-                  <span aria-hidden>›</span>
+                  <ChevronRight className="h-5 w-5 shrink-0 text-sub" />
                 </button>
               </li>
             ))}

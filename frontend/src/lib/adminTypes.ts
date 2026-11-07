@@ -20,6 +20,8 @@ export interface Billing {
   cancel_at_period_end: boolean;
   manageable: boolean;
   configured: boolean;
+  /** 料金の表記（例：月額1,980円（税込））。分からなければ空 */
+  price_label: string;
 }
 
 export interface Me {

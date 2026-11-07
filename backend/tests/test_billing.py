@@ -335,3 +335,36 @@ class TestWebhook:
     def test_period_end_from_older_api_shape(self):
         assert stripe_api._period_end({"current_period_end": 1_800_000_000}) is not None
         assert stripe_api._period_end({"items": {"data": []}}) is None
+
+
+class TestPlanLabel:
+    PRICE = {"unit_amount": 1980, "currency": "jpy", "recurring": {"interval": "month"}, "tax_behavior": "inclusive"}
+
+    def test_from_stripe_price_and_cached(self, db, stripe_on):
+        with mock.patch.object(stripe.Price, "retrieve", return_value=obj(self.PRICE)) as retrieve:
+            assert APIClient().get("/api/v1/public/plan").json() == {"price_label": "月額1,980円（税込）"}
+            assert stripe_api.plan_label() == "月額1,980円（税込）"
+        assert retrieve.call_count == 1
+
+    def test_setting_overrides_and_unconfigured_or_failure_is_empty(self, db, settings):
+        assert stripe_api.plan_label() == ""
+        settings.STRIPE_SECRET_KEY, settings.STRIPE_PRICE_ID = "sk", "price"
+        with mock.patch.object(stripe.Price, "retrieve", side_effect=stripe.APIConnectionError("down")):
+            assert stripe_api.plan_label() == ""
+        settings.PLAN_PRICE_LABEL = "月額2,000円"
+        assert stripe_api.plan_label() == "月額2,000円"
+
+    def test_format(self):
+        f = stripe_api.format_price
+        assert (
+            f({"unit_amount": 21780, "currency": "jpy", "recurring": {"interval": "year"}, "tax_behavior": "exclusive"})
+            == "年額21,780円（税別）"
+        )
+        assert f({"unit_amount": 1980, "currency": "jpy"}) == "1,980円"
+        assert f({"unit_amount": 10, "currency": "usd"}) == ""
+        assert f({"currency": "jpy"}) == ""
+
+    def test_billing_includes_price_label(self, new_owner, stripe_on):
+        stripe_on.PLAN_PRICE_LABEL = "月額1,980円（税込）"
+        b = client_for(new_owner).get("/api/v1/admin/tenants/komorebi/billing").json()
+        assert b["price_label"] == "月額1,980円（税込）"

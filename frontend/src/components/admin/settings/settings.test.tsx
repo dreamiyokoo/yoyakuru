@@ -273,7 +273,7 @@ describe("settings", () => {
       { path: "staff/10/exceptions/9", method: "DELETE" },
       { path: "staff/10/exceptions", method: "POST", body: { date: "2026-11-05", is_off: false, starts_at: "12:00", ends_at: "18:00" } },
     ]);
-    await userEvent.click(screen.getByRole("button", { name: "‹ 担当者の一覧へ" }));
+    await userEvent.click(screen.getByRole("button", { name: "担当者の一覧へ" }));
     expect(await screen.findByRole("button", { name: "担当者を追加" })).toBeInTheDocument();
   });
 

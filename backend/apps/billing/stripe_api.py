@@ -6,14 +6,19 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 
 import stripe
 from django.conf import settings
+from django.core.cache import cache
 
 from apps.tenants.models import Tenant
 
 from .models import Subscription
+
+log = logging.getLogger(__name__)
+PLAN_LABEL_CACHE_SECONDS = 3600
 
 
 class NotConfigured(Exception):
@@ -28,6 +33,35 @@ def _key() -> str:
     if not configured():
         raise NotConfigured
     return settings.STRIPE_SECRET_KEY
+
+
+def plan_label() -> str:
+    """料金の表記（例：月額1,980円（税込））。PLAN_PRICE_LABEL があればそれ、なければ Stripe の価格から作る。
+
+    LP と支払いの案内で同じ表記を出すため、ここだけで決める。Stripe に届かないときは空にする。
+    """
+    if settings.PLAN_PRICE_LABEL:
+        return settings.PLAN_PRICE_LABEL
+    if not configured():
+        return ""
+    label = cache.get("billing:plan_label")
+    if label is None:
+        try:
+            label = format_price(stripe.Price.retrieve(settings.STRIPE_PRICE_ID, api_key=_key()).to_dict())
+        except stripe.StripeError:
+            log.warning("price retrieve failed", exc_info=True)
+            return ""
+        cache.set("billing:plan_label", label, PLAN_LABEL_CACHE_SECONDS)
+    return label
+
+
+def format_price(price: dict) -> str:
+    amount = price.get("unit_amount")
+    if amount is None or str(price.get("currency", "")).lower() != "jpy":
+        return ""
+    period = {"month": "月額", "year": "年額"}.get((price.get("recurring") or {}).get("interval"), "")
+    tax = {"inclusive": "（税込）", "exclusive": "（税別）"}.get(price.get("tax_behavior"), "")
+    return f"{period}{amount:,}円{tax}"
 
 
 def open_checkout_url(sub: Subscription) -> str | None:

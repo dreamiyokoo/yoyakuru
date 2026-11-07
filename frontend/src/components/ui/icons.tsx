@@ -75,3 +75,56 @@ export const ChevronDown = (p: P) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 );
+
+export const Lock = (p: P) => (
+  <Svg {...p}>
+    <rect width="18" height="11" x="3" y="11" rx="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </Svg>
+);
+
+export const ChevronLeft = (p: P) => (
+  <Svg {...p}>
+    <path d="m15 18-6-6 6-6" />
+  </Svg>
+);
+
+export const ChevronRight = (p: P) => (
+  <Svg {...p}>
+    <path d="m9 18 6-6-6-6" />
+  </Svg>
+);
+
+export const Plus = (p: P) => (
+  <Svg {...p}>
+    <path d="M5 12h14M12 5v14" />
+  </Svg>
+);
+
+export const List = (p: P) => (
+  <Svg {...p}>
+    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+  </Svg>
+);
+
+export const CalendarX = (p: P) => (
+  <Svg {...p}>
+    <rect width="18" height="18" x="3" y="4" rx="2" />
+    <path d="M16 2v4M8 2v4M3 10h18M10 14l4 4M14 14l-4 4" />
+  </Svg>
+);
+
+export const Sliders = (p: P) => (
+  <Svg {...p}>
+    <path d="M20 7h-9M14 17H5" />
+    <circle cx="17" cy="17" r="3" />
+    <circle cx="7" cy="7" r="3" />
+  </Svg>
+);
+
+export const Copy = (p: P) => (
+  <Svg {...p}>
+    <rect width="14" height="14" x="8" y="8" rx="2" />
+    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+  </Svg>
+);

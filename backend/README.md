@@ -39,6 +39,7 @@
 | POST | `/api/v1/auth/signup` | 店舗のセルフ登録（ログイン不要、CSRF、回数制限）。店舗・オーナー・未払いの契約を作り、ログインした状態にする。この後、二段階認証 → お支払いの順に進む |
 | GET | `.../billing?checkout_session=` | 契約の状態（オーナーのみ、未払いでも使える）。支払い画面から戻ったときは、Webhook を待たずに Stripe と合わせる |
 | POST | `.../billing/checkout`・`billing/portal` | Stripe の支払い画面（月額の登録）と、カードの変更・領収書・解約の画面のURL |
+| GET | `/api/v1/public/plan` | 料金の表記（LP用、ログイン不要） |
 | POST | `/api/v1/billing/stripe-webhook` | Stripe からの知らせ（署名を確認）。毎回 Stripe から今の契約を取り直して合わせるので、重複や順番の入れ替わりに強い |
 | GET | `/api/v1/admin/tenants/{店舗名}/options` | フォーム用のサービス・担当者と自分の権限 |
 | GET・POST | `.../bookings` | 予約一覧（期間・担当で絞り込み）、手入力の予約（確定で作成） |
@@ -98,5 +99,5 @@ pip-audit -r requirements-dev.txt
 3. Webhook の送信先に `https://api.<ドメイン>/api/v1/billing/stripe-webhook` を登録し、
    `checkout.session.completed` と `customer.subscription.created`・`updated`・`deleted` を選ぶ。署名の鍵を `STRIPE_WEBHOOK_SECRET` に入れる
 4. カスタマーポータル（カードの変更・解約）を Stripe の設定で有効にする
-5. LP の料金欄の表記を `PLAN_PRICE_LABEL` に入れる（Stripe の価格と同じにする）
+5. 料金の表記（LP・支払いの案内）は Stripe の価格から作る（例：月額1,980円（税込））。変えたいときだけ `PLAN_PRICE_LABEL` に入れる
 
