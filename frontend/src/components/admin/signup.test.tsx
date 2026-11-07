@@ -5,7 +5,7 @@ import type { Me } from "@/lib/adminTypes";
 import { mockFetch } from "@/test-utils";
 import { AdminProvider } from "./AdminContext";
 import { BillingRequired } from "./BillingRequired";
-import { SignupPage } from "./SignupPage";
+import { SignupPage, check } from "./SignupPage";
 
 const replace = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -14,7 +14,6 @@ vi.mock("next/navigation", () => ({
 }));
 
 const membership = { subdomain: "komorebi", name: "こもれび整体院", role: "owner" as const, staff_id: null, billing_required: true, billing_managed: true };
-const me: Me = { two_factor_enabled: false, two_factor_required: true, email: "k@example.com", name: "木漏 日子", memberships: [membership] };
 
 function csrf(url: string) {
   if (url.endsWith("/auth/csrf")) {
@@ -32,7 +31,7 @@ afterEach(() => {
 });
 
 async function fill(values: Partial<Record<string, string>> = {}) {
-  const v = { お店の名前: "こもれび整体院", 予約ページのURL: "Komorebi ", お名前: "木漏 日子", メールアドレス: " k@example.com ", パスワード: "long-enough-pass-1", ...values };
+  const v = { お店の名前: "こもれび整体院", 予約ページのURL: "Komorebi ", ...values };
   for (const [label, text] of Object.entries(v)) {
     const input = screen.getByLabelText(label);
     await userEvent.clear(input);
@@ -49,79 +48,47 @@ function renderSignup() {
 }
 
 describe("signup", () => {
-  it("checks the fields before sending and lists the problems", async () => {
-    const calls = mockFetch((url) => csrf(url) ?? (url.endsWith("/auth/me") ? { status: 403, body: {} } : { body: {} }));
+  it("needs valid values before going to Google", async () => {
+    mockFetch((url) => (url.endsWith("/auth/me") ? { status: 403, body: {} } : { body: {} }));
     renderSignup();
-    await userEvent.click(await screen.findByRole("button", { name: "登録して次へ" }));
-    const summary = screen.getByRole("alert");
-    expect(summary).toHaveTextContent("入力を確認してください（5件）");
-    await vi.waitFor(() => expect(summary).toHaveFocus());
-    expect(screen.getByRole("link", { name: "お店の名前を入力してください" })).toHaveAttribute("href", "#signup-store_name");
-    await fill({ 予約ページのURL: "-ab", メールアドレス: "not-mail", パスワード: "short" });
-    await userEvent.click(screen.getByRole("button", { name: "登録して次へ" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("（3件）");
-    expect(screen.getAllByText(/英小文字・数字・ハイフンで3〜32文字にしてください/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("メールアドレスの形が正しくありません").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("パスワードは8文字以上にしてください").length).toBeGreaterThan(0);
-    expect(calls.some((c) => c.url.endsWith("/auth/signup"))).toBe(false);
-    // 直し始めた欄のエラーは消える
-    await userEvent.type(screen.getByLabelText("パスワード"), "-more-letters");
-    expect(screen.queryByText("パスワードは8文字以上にしてください", { selector: "p" })).toBeNull();
-  });
-
-  it("checks a field when leaving it, and shows the password on request", async () => {
-    mockFetch((url) => csrf(url) ?? (url.endsWith("/auth/me") ? { status: 403, body: {} } : { body: {} }));
-    renderSignup();
-    await userEvent.type(await screen.findByLabelText("メールアドレス"), "abc");
+    const button = screen.getByRole("button", { name: "Googleで登録する" });
+    expect(button).toBeDisabled();
+    await fill({ 予約ページのURL: "ab" });
     await userEvent.tab();
-    expect(screen.getByText("メールアドレスの形が正しくありません")).toBeInTheDocument();
-    const password = screen.getByLabelText("パスワード");
-    expect(password).toHaveAttribute("type", "password");
-    await userEvent.click(screen.getByRole("button", { name: "入力した文字を表示する" }));
-    expect(password).toHaveAttribute("type", "text");
-    expect(screen.getByRole("button", { name: "入力した文字を隠す" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText(/^\.(localhost|dreami\.blog)$/)).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: /3つのうち1つ目/ })).toBeInTheDocument();
+    expect(await screen.findByText(/英小文字・数字・ハイフンで3〜32文字にしてください/)).toBeInTheDocument();
+    expect(button).toBeDisabled();
+    expect(check("store_name", { store_name: " ", subdomain: "abc" })).toBe("お店の名前を入力してください");
+    expect(check("subdomain", { store_name: "x", subdomain: "" })).toBe("予約ページのURLを入力してください");
   });
 
-  it("shows field errors from the server, then signs up and moves on", async () => {
-    let n = 0;
+  it("saves the store name and URL, then moves to Google", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
     const calls = mockFetch((url) => {
       const c = csrf(url);
       if (c) return c;
-      if (url.endsWith("/auth/me")) return { status: 403, body: { detail: "ログインしてください" } };
-      if (url.endsWith("/auth/signup"))
-        return ++n === 1
-          ? { status: 400, body: { subdomain: ["このURLは既に使われています"], password: ["短すぎます", "よく使われています"] } }
-          : { status: 201, body: me };
+      if (url.endsWith("/auth/me")) return { status: 403, body: {} };
+      if (url.endsWith("/google/start")) return { body: { url: "/accounts/google/login/?process=login" } };
       return { body: {} };
     });
     renderSignup();
-    await screen.findByLabelText("お店の名前");
     await fill();
-    await userEvent.click(screen.getByRole("button", { name: "登録して次へ" }));
-    expect(await screen.findByRole("link", { name: "このURLは既に使われています" })).toBeInTheDocument();
-    expect(screen.getAllByText("短すぎます よく使われています").length).toBe(2);
-    await fill();
-    await userEvent.click(screen.getByRole("button", { name: "登録して次へ" }));
-    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/bookings"));
-    const sent = calls.filter((c) => c.url.endsWith("/auth/signup"));
-    expect(JSON.parse(String(sent[1].init?.body))).toEqual({
-      store_name: "こもれび整体院",
-      subdomain: "komorebi",
-      name: "木漏 日子",
-      email: "k@example.com",
-      password: "long-enough-pass-1",
-    });
+    await userEvent.click(screen.getByRole("button", { name: "Googleで登録する" }));
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledWith("/accounts/google/login/?process=login"));
+    expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ kind: "signup", store_name: "こもれび整体院", subdomain: "komorebi" });
   });
 
-  it("shows a general message when the server gives no field errors", async () => {
-    mockFetch((url) => csrf(url) ?? (url.endsWith("/auth/me") ? { status: 403, body: {} } : { status: 429, body: { detail: "しばらくしてからお試しください" } }));
+  it("shows the server's message when the URL is already taken", async () => {
+    mockFetch((url) => {
+      const c = csrf(url);
+      if (c) return c;
+      if (url.endsWith("/auth/me")) return { status: 403, body: {} };
+      return { status: 400, body: { subdomain: ["このURLは既に使われています"] } };
+    });
     renderSignup();
-    await screen.findByLabelText("お店の名前");
     await fill();
-    await userEvent.click(screen.getByRole("button", { name: "登録して次へ" }));
-    expect(await screen.findByText("しばらくしてからお試しください")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Googleで登録する" }));
+    expect(await screen.findByText("このURLは既に使われています")).toBeInTheDocument();
   });
 });
 
@@ -146,7 +113,7 @@ describe("billing required", () => {
 
   it("confirms the payment when coming back from Stripe", async () => {
     window.history.replaceState(null, "", "/bookings?checkout_session=cs_1");
-    const paid = { ...me, two_factor_enabled: true, memberships: [{ ...membership, billing_required: false }] };
+    const paid = { email: "k@example.com", name: "木漏 日子", calendar_connected: true, memberships: [{ ...membership, billing_required: false }] };
     const calls = mockFetch((url) => (url.includes("/billing?") ? { body: { usable: true } } : url.endsWith("/auth/me") ? { body: paid } : { body: {} }));
     const onPaid = vi.fn();
     render(<BillingRequired membership={membership} onPaid={onPaid} />);

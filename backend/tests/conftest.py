@@ -50,10 +50,10 @@ def service(store, staff, beds):
     return s
 
 
-def user(email, password="pw-123456!"):
+def user(email):
     from django.contrib.auth import get_user_model
 
-    return get_user_model().objects.create_user(username=email, email=email, password=password)
+    return get_user_model().objects.create_user(username=email, email=email)
 
 
 def client_for(u):
@@ -70,16 +70,7 @@ def owner(store, staff):
 
     u = user("owner@example.com")
     Membership.objects.create(tenant=store, user=u, role=Role.OWNER, staff=staff[0])
-    enable_two_factor(u)  # オーナーは二段階認証が必須（LOGIN-07）
     return u
-
-
-def enable_two_factor(u, secret="JBSWY3DPEHPK3PXP"):
-    from django.utils import timezone
-
-    from apps.core.models import TwoFactor
-
-    return TwoFactor.objects.create(user=u, secret=secret, confirmed_at=timezone.now())
 
 
 @pytest.fixture
@@ -98,3 +89,90 @@ def _fresh_cache():
 
     cache.clear()
     yield
+
+
+class FakeGoogle:
+    """Googleカレンダー。担当者ごとの予定（busy）と、書き込まれた予定を持つ。"""
+
+    def __init__(self):
+        self.busy: dict[int, list[tuple[datetime, datetime]]] = {}  # ユーザーID -> 他アプリの予定
+        self.events: dict[int, dict[str, dict]] = {}  # ユーザーID -> 予定ID -> 内容
+        self.calls: list[tuple[str, str]] = []
+        self.fail_with: int | None = None  # 次の呼び出しに返すHTTPステータス
+
+    def add_busy(self, user, start, end):
+        self.busy.setdefault(user.pk, []).append((start, end))
+
+    def send(self, method, url, headers=None, params=None, json=None, data=None):
+        import re
+
+        uid = int((headers or {})["Authorization"].removeprefix("Bearer tok"))
+        path = url.split("/calendars/primary", 1)[1]
+        self.calls.append((method, path))
+        if self.fail_with:
+            return Response(self.fail_with, {})
+        mine = self.events.setdefault(uid, {})
+        if method == "GET":
+            items = [
+                {"start": {"dateTime": s.isoformat()}, "end": {"dateTime": e.isoformat()}}
+                for s, e in self.busy.get(uid, [])
+            ]
+            # ヨヤクルが書いた予定は、予定の目印つきで返ってくる
+            items += [{**ev, "status": "confirmed"} for ev in mine.values()]
+            return Response(200, {"items": items})
+        if method == "POST":
+            if json["id"] in mine:
+                return Response(409, {})
+            mine[json["id"]] = json
+            return Response(200, json)
+        eid = re.search(r"/events/([^/]+)$", path).group(1)
+        if method == "PUT":
+            mine[eid] = json
+            return Response(200, json)
+        if method == "DELETE":
+            return Response(204 if mine.pop(eid, None) else 404, {})
+        raise AssertionError(method)
+
+
+class Response:
+    def __init__(self, status_code, body):
+        self.status_code, self._body = status_code, body
+
+    def json(self):
+        return self._body
+
+
+@pytest.fixture(autouse=True)
+def gcal(monkeypatch):
+    """Googleを呼ばないテスト用の差し替え。全員のカレンダーが接続済みで、予定は空。"""
+    from django.contrib.auth import get_user_model
+
+    from apps.core import google as g
+
+    fake = FakeGoogle()
+    fake.real = {"calendar_owners": g.calendar_owners, "access_token": g.access_token, "_send": g._send}
+    users = {}
+
+    def owners(staff):
+        out = {}
+        for s in staff:
+            if s.id not in users:
+                users[s.id] = get_user_model().objects.create(username=f"gcal-{s.id}", email=f"gcal-{s.id}@example.com")
+            out[s.id] = users[s.id]
+        return out
+
+    monkeypatch.setattr(g, "calendar_owners", owners)
+    monkeypatch.setattr(g, "access_token", lambda user: f"tok{user.pk}")
+    monkeypatch.setattr(g, "_send", fake.send)
+    fake.owner_of = lambda staff: owners([staff])[staff.id]
+    return fake
+
+
+@pytest.fixture
+def real_google(gcal, monkeypatch):
+    """Googleの差し替えを元に戻す（接続の判定・トークンの更新そのものを確かめるテスト用）。"""
+    from apps.core import google as g
+
+    for name, fn in gcal.real.items():
+        monkeypatch.setattr(g, name, fn)
+    return g

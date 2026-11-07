@@ -19,9 +19,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         _, created = Tenant.objects.get_or_create(subdomain="demo", defaults={"name": "Demo"})
-        self.stdout.write(
-            self.style.SUCCESS("demo 店舗を作成しました") if created else "demo 店舗は既に存在します"
-        )
+        self.stdout.write(self.style.SUCCESS("demo 店舗を作成しました") if created else "demo 店舗は既に存在します")
 
         User = get_user_model()
         if User.objects.filter(username="admin").exists():
@@ -33,7 +31,5 @@ class Command(BaseCommand):
                 self.style.WARNING("DJANGO_SUPERUSER_PASSWORD が未設定のためスーパーユーザーを作成しません")
             )
             return
-        User.objects.create_superuser(
-            username="admin", email=f"admin@{settings.TENANT_BASE_DOMAIN}", password=password
-        )
+        User.objects.create_superuser(username="admin", email=f"admin@{settings.TENANT_BASE_DOMAIN}", password=password)
         self.stdout.write(self.style.SUCCESS("スーパーユーザー admin を作成しました"))

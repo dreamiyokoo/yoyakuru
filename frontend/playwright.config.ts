@@ -18,10 +18,10 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `cd ../backend && python manage.py migrate --noinput && python manage.py seed_demo --reset && python manage.py runserver ${backendPort} --noreload`,
+      command: `cd ../backend && python manage.py migrate --noinput && python manage.py seed_demo --reset --with-users && python manage.py runserver ${backendPort} --noreload`,
       url: `http://localhost:${backendPort}/health`,
       reuseExistingServer: !process.env.CI,
-      env: { DJANGO_SETTINGS_MODULE: "config.settings.e2e", E2E_MAIL_DIR: mailDir, DEMO_USER_PASSWORD: "e2e-demo-pass", DEMO_TOTP_SECRET: "JBSWY3DPEHPK3PXP" },
+      env: { DJANGO_SETTINGS_MODULE: "config.settings.e2e", E2E_MAIL_DIR: mailDir },
       timeout: 120_000,
     },
     {

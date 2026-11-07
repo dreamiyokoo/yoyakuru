@@ -1,10 +1,12 @@
 """空き判定（BOOK-01〜03、TIME-01〜06、MENU-03〜07、BREAK-03〜04、SYNC-08、EXT-01）。
 
+空き ＝ 勤務・休憩・メニュー・設備の設定 − 担当スタッフのGoogleカレンダーの予定 − ヨヤクルの予約。
 Web・チャット・電話・管理画面は、すべてこの判定を使う。
 """
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
@@ -13,6 +15,7 @@ from zoneinfo import ZoneInfo
 from django.db import models
 from django.utils import timezone
 
+from apps.core import google
 from apps.stores.models import (
     BusinessHours,
     DateOverride,
@@ -20,7 +23,6 @@ from apps.stores.models import (
     Service,
     ShiftException,
     Staff,
-    TimeOff,
     WeeklyShift,
 )
 from apps.tenants.models import Tenant
@@ -28,6 +30,8 @@ from apps.tenants.models import Tenant
 from .models import Booking
 
 Interval = tuple[datetime, datetime]
+
+log = logging.getLogger(__name__)
 
 
 def subtract(intervals: Iterable[Interval], cuts: Iterable[Interval]) -> list[Interval]:
@@ -126,18 +130,13 @@ def break_intervals(store: Tenant, staff: Staff, day: date) -> list[Interval]:
     ]
 
 
-def time_off_intervals(store: Tenant, staff: Staff, day_start: datetime, day_end: datetime) -> list[Interval]:
-    qs = TimeOff.objects.filter(tenant=store, starts_at__lt=day_end, ends_at__gt=day_start)
-    return [(t.starts_at, t.ends_at) for t in qs if t.staff_id in (None, staff.id)]
-
-
-def staff_free_intervals(store: Tenant, staff: Staff, day: date, open_intervals: Sequence[Interval]) -> list[Interval]:
-    """勤務時間から休憩・休みを除いた時間。既存の予約は別に判定する。"""
-    tz = store_tz(store)
-    day_start = _at(day, time.min, tz)
+def staff_free_intervals(
+    store: Tenant, staff: Staff, day: date, open_intervals: Sequence[Interval], busy: Sequence[Interval] = ()
+) -> list[Interval]:
+    """勤務時間から休憩とGoogleカレンダーの予定を除いた時間。既存の予約は別に判定する。"""
     working = staff_working_intervals(staff, day, open_intervals)
     working = subtract(working, break_intervals(store, staff, day))
-    return subtract(working, time_off_intervals(store, staff, day_start, day_start + timedelta(days=1)))
+    return subtract(working, busy)
 
 
 def plan_for(service: Service, customer_type: str, starts_at: datetime) -> Plan:
@@ -227,7 +226,13 @@ def available_slots(
     party_size: int = 1,
     exclude_booking_id: int | None = None,
     enforce_cutoff: bool = True,
+    use_calendar: bool = True,
+    fresh_busy: bool = False,
 ) -> list[Slot]:
+    """空き枠。use_calendar=False なら、Googleカレンダーを見ず設定と予約だけで判定する（設定変更の影響の確認用）。
+
+    fresh_busy=True なら、Googleの予定を最新で取り直す（予約を確定する直前の再確認）。
+    """
     now = now or timezone.now()
     tz = store_tz(store)
     today = now.astimezone(tz).date()
@@ -243,14 +248,25 @@ def available_slots(
     candidates = list(service.staff.filter(is_active=True).order_by("priority", "id"))
     if staff is not None:
         candidates = [s for s in candidates if s.id == staff.id]
+    first_open = min(start for start, _ in open_intervals)
+    last_close = max(end for _, end in open_intervals)
+    busy: dict[int, list[Interval]] = {}
+    if use_calendar:
+        # カレンダーを接続していない・つながらないスタッフの枠は出さない（二重予約を防ぐため安全側に倒す）
+        owners = google.calendar_owners(candidates)
+        for s in candidates:
+            if s.id in owners:
+                try:
+                    busy[s.id] = google.busy_intervals(owners[s.id], first_open, last_close, tz, fresh=fresh_busy)
+                except (google.Disconnected, google.Unavailable):
+                    log.warning("staff %s: Google calendar not readable; slots hidden", s.id)
+        candidates = [s for s in candidates if s.id in busy]
     if not candidates:
         return []
     bookings = _blocking_bookings(store, day, now, exclude_booking_id)
-    free = {s.id: staff_free_intervals(store, s, day, open_intervals) for s in candidates}
+    free = {s.id: staff_free_intervals(store, s, day, open_intervals, busy.get(s.id, ())) for s in candidates}
     step = timedelta(minutes=store.slot_interval_minutes)
     cutoff = now + timedelta(minutes=store.same_day_cutoff_minutes) if enforce_cutoff else None
-    first_open = min(start for start, _ in open_intervals)
-    last_close = max(end for _, end in open_intervals)
 
     slots: list[Slot] = []
     t = first_open

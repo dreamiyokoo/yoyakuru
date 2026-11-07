@@ -1,7 +1,7 @@
 """店舗利用者の招待と、メンバーの停止（ADMIN-03）。
 
 オーナーがメールアドレスと権限（オーナー・スタッフ）、担当者を指定して招待する。招待されたひとは、
-メールのリンクからパスワードを決めて（すでにアカウントがあればそのパスワードで）参加する。
+メールのリンクから、招待されたメールアドレスのGoogleアカウントでログインして参加する。
 """
 
 from __future__ import annotations
@@ -10,15 +10,10 @@ import secrets
 from datetime import timedelta
 
 from django.conf import settings
-from django.contrib.auth import authenticate, get_user_model, login
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import EmailMessage
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_protect
 from rest_framework import serializers, status
 from rest_framework.exceptions import NotFound
 from rest_framework.permissions import AllowAny
@@ -26,8 +21,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from apps.core import two_factor
-from apps.core.auth_api import me_payload
+from apps.core import google
 
 from .models import Invitation, Membership, Role, Staff
 
@@ -42,7 +36,7 @@ def send_invitation(invitation: Invitation) -> None:
     role = "オーナー" if invitation.role == Role.OWNER else "スタッフ"
     body = (
         f"{invitation.tenant.name}の管理画面（ヨヤクル）に、{role}として招待されました。\n\n"
-        f"次のリンクを開いて、参加の手続きをしてください（{VALID_DAYS}日以内）。\n{invite_url(invitation)}\n\n"
+        f"次のリンクを開き、このメールアドレスのGoogleアカウントでログインして参加してください（{VALID_DAYS}日以内）。\n{invite_url(invitation)}\n\n"
         "心当たりがない場合は、このメールを破棄してください。\n"
     )
     EmailMessage(f"【{invitation.tenant.name}】ヨヤクルへの招待", body, to=[invitation.email]).send()
@@ -74,7 +68,7 @@ def member_payload(m: Membership) -> dict:
         "staff": m.staff_id,
         "staff_name": m.staff.display_name if m.staff else "",
         "is_active": m.is_active,
-        "two_factor_enabled": two_factor.enabled_for(m.user),
+        "calendar_connected": google.connected(m.user),
     }
 
 
@@ -128,89 +122,56 @@ def create_invitation(view, request) -> Response:
 # ---- 招待されたひと向け（ログイン不要。トークンで確認する）
 
 
-def _open_invitation(token: str, lock: bool = False) -> Invitation:
+class InvitationError(Exception):
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code, self.message = code, message
+
+
+def open_invitation(token: str, lock: bool = False) -> Invitation:
     qs = Invitation.objects.filter(token=token).select_related("tenant", "staff")
     invitation = (qs.select_for_update(of=("self",)) if lock else qs).first()
     if invitation is None or not is_open(invitation) or not invitation.tenant.is_active:
-        raise NotFound("この招待は無効か、期限が切れています")
+        raise InvitationError("invalid_invitation", "この招待は無効か、期限が切れています")
     return invitation
 
 
 class InvitationView(APIView):
+    """招待の内容の確認（ログイン不要）。参加はGoogleでログインして行う。"""
+
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "login"
 
     def get(self, request, token):
-        i = _open_invitation(token)
-        has_account = get_user_model().objects.filter(email__iexact=i.email, is_active=True).exists()
+        try:
+            i = open_invitation(token)
+        except InvitationError as e:
+            raise NotFound(e.message) from e
         return Response(
             {
                 "tenant": i.tenant.name,
                 "email": i.email,
                 "role": i.role,
                 "staff_name": i.staff.display_name if i.staff else "",
-                "has_account": has_account,
             }
         )
 
 
-class AcceptSerializer(serializers.Serializer):
-    password = serializers.CharField(max_length=200)
-    code = serializers.CharField(max_length=20, required=False, allow_blank=True)
-    name = serializers.CharField(max_length=100, required=False, allow_blank=True)
-
-
-class AcceptInvitationView(APIView):
-    """招待を受け入れて参加し、そのままログインする。アカウントがなければ作る。
-
-    ログインと同じく、CSRFを明示的に確かめる（未ログインの要求でも）。他のサイトから
-    攻撃者の招待で受け入れさせ、攻撃者のアカウントにログインさせることを防ぐ。
-    """
-
-    permission_classes = [AllowAny]
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "login"
-
-    @method_decorator(csrf_protect)
-    def post(self, request, token):
-        data = AcceptSerializer(data=request.data)
-        data.is_valid(raise_exception=True)
-        password = data.validated_data["password"]
-        with transaction.atomic():
-            # ロックを取ってから状態を確かめる。同時に受け入れても、使えるのは1回だけ
-            i = _open_invitation(token, lock=True)
-            if i.staff and Membership.objects.filter(staff=i.staff).exclude(user__email__iexact=i.email).exists():
-                # 別の招待で先に、この担当者に参加した人がいる（アカウントを作る前に断る）
-                message = "この担当者には、すでにログインする人がいます"
-                return Response({"code": "staff_taken", "message": message}, status=400)
-            users = get_user_model().objects
-            account = users.filter(email__iexact=i.email, is_active=True).first()
-            if account:
-                user = authenticate(request, username=account.get_username(), password=password)
-                if user is None:
-                    return Response({"code": "invalid_login", "message": "パスワードが違います"}, status=400)
-                if two_factor.enabled_for(user):
-                    # 二段階認証を設定済みのアカウントは、ログインと同じく認証アプリのコードも求める
-                    code = data.validated_data.get("code", "")
-                    if not code:
-                        message = "認証アプリの6桁（または回復コード）を入力してください"
-                        return Response({"code": "two_factor_required", "message": message}, status=400)
-                    if not two_factor.verify(user, code):
-                        return Response({"code": "invalid_code", "message": "コードが違います"}, status=400)
-            else:
-                try:
-                    validate_password(password)
-                except DjangoValidationError as e:
-                    return Response({"code": "weak_password", "message": " ".join(e.messages)}, status=400)
-                user = users.create_user(username=i.email, email=i.email, password=password)
-                if name := data.validated_data.get("name", "").strip():
-                    user.first_name = name[:150]
-                    user.save(update_fields=["first_name"])
-            Membership.objects.update_or_create(
-                tenant=i.tenant, user=user, defaults={"role": i.role, "staff": i.staff, "is_active": True}
+def accept_invitation(user, token: str) -> Membership:
+    """招待を受け入れて、本人のGoogleアカウントで店舗に参加させる。使えるのは1回だけ。"""
+    with transaction.atomic():
+        # ロックを取ってから状態を確かめる。同時に受け入れても、参加できるのは1人だけ
+        i = open_invitation(token, lock=True)
+        if i.email.lower() != user.email.lower():
+            raise InvitationError(
+                "invitation_email", f"招待されたメールアドレス（{i.email}）のGoogleアカウントでログインしてください"
             )
-            i.accepted_at = timezone.now()
-            i.save(update_fields=["accepted_at"])
-        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-        return Response(me_payload(user))
+        if i.staff and Membership.objects.filter(staff=i.staff).exclude(user=user).exists():
+            raise InvitationError("staff_taken", "この担当者には、すでにログインする人がいます")
+        membership, _ = Membership.objects.update_or_create(
+            tenant=i.tenant, user=user, defaults={"role": i.role, "staff": i.staff, "is_active": True}
+        )
+        i.accepted_at = timezone.now()
+        i.save(update_fields=["accepted_at"])
+    return membership

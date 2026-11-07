@@ -61,10 +61,25 @@ function Empty({ sub }: { sub: string }) {
   );
 }
 
+/** 予約枠に出ていない担当者の案内。Googleカレンダーが未接続・接続切れのとき。 */
+function CalendarIssues({ sub }: { sub: string }) {
+  const { data } = useLoad(`${sub}|options`, () => adminApi.options(sub));
+  if (!data?.calendar_issues.length) return null;
+  const own = data.role === "staff";
+  return (
+    <Notice tone="warn">
+      {own
+        ? "あなたのGoogleカレンダーの接続が切れているため、予約枠が公開ページに出ていません。「アカウント」からつなぎ直してください。"
+        : `Googleカレンダーが接続されていないため、予約枠が出ていません：${data.calendar_issues.map((i) => i.name).join("、")}。本人がログインして、カレンダーを許可すると表示されます。`}
+    </Notice>
+  );
+}
+
 function List({ sub, from, to, range, setRange }: { sub: string; from: string; to: string; range: Range; setRange: (r: Range) => void }) {
   const { data, error, loading } = useLoad(`${sub}|${from}|${to}`, () => adminApi.bookings(sub, from, to));
   return (
     <>
+      <CalendarIssues sub={sub} />
       <div role="radiogroup" aria-label="期間" className="flex gap-2">
         <Chip selected={range === "today"} onSelect={() => setRange("today")}>今日</Chip>
         <Chip selected={range === "tomorrow"} onSelect={() => setRange("tomorrow")}>明日</Chip>

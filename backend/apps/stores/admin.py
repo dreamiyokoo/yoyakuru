@@ -4,14 +4,12 @@ from unfold.admin import ModelAdmin
 from .models import (
     BusinessHours,
     DateOverride,
-    Holiday,
     Membership,
     RecurringBreak,
     Resource,
     Service,
     ShiftException,
     Staff,
-    TimeOff,
     WeeklyShift,
 )
 
@@ -65,18 +63,7 @@ class RecurringBreakAdmin(ModelAdmin):
     list_filter = ("tenant",)
 
 
-@admin.register(TimeOff)
-class TimeOffAdmin(ModelAdmin):
-    list_display = ("tenant", "staff", "starts_at", "ends_at")
-    list_filter = ("tenant",)
-
-
 @admin.register(Membership)
 class MembershipAdmin(ModelAdmin):
     list_display = ("user", "tenant", "role", "staff", "is_active")
     list_filter = ("tenant", "role")
-
-
-@admin.register(Holiday)
-class HolidayAdmin(ModelAdmin):
-    list_display = ("date", "name")

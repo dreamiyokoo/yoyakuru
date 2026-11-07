@@ -13,7 +13,6 @@ interface StoreRules {
   phone: string;
   address: string;
   guide: string;
-  calendar_shows_customer_name: boolean;
   slot_interval_minutes: number;
   booking_window_days: number;
   same_day_cutoff_minutes: number;
@@ -80,11 +79,6 @@ function RulesForm({ sub, initial }: { sub: string; initial: StoreRules }) {
         </select>
       </label>
       <Field label="準備時間の既定値（分）" type="number" value={String(v.default_buffer_minutes)} onChange={(x) => set("default_buffer_minutes", Number(x))} hint="サービスごとに設定がない場合に使います" />
-      <label className="flex min-h-11 items-center gap-2 text-sm font-bold">
-        <input type="checkbox" checked={Boolean(v.calendar_shows_customer_name)} onChange={(e) => set("calendar_shows_customer_name", e.target.checked)} />
-        カレンダー配信にお客様の名前を含める
-      </label>
-      <p className="-mt-2 text-xs text-sub">担当者が自分のカレンダーアプリに表示する予約に、名前を載せます。連絡先は載せません。</p>
       <p className="text-xs text-sub">仮押さえの有効時間は15分（固定）です。</p>
       {ui}
       <Button disabled={busy} onClick={() => void change("store", "PUT", v)}>

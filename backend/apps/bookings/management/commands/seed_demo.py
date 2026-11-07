@@ -1,19 +1,19 @@
 """開発・E2Eテスト用のデモ店舗（伏見整体院）を作る。本番では使わない。
 
-DEMO_USER_PASSWORD を設定すると、ログイン用のオーナー（owner@fushimi.example、Aさん）と
-スタッフ（staff@fushimi.example、Bさん）も作る。未設定ならユーザーは作らない。
+--with-users を付けると、ログイン用のオーナー（owner@fushimi.example、Aさん）と
+スタッフ（staff@fushimi.example、Bさん）も作り、Googleカレンダーを接続済みの状態にする
+（E2Eテスト用。Googleログインの代わりに使う。本物のGoogleには接続しない）。
 """
 
-import os
-from datetime import time
+from datetime import time, timedelta
 
+from allauth.socialaccount.models import SocialAccount, SocialToken
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
 from apps.bookings.models import Booking
-from apps.core.models import TwoFactor
 from apps.stores.models import BusinessHours, Membership, RecurringBreak, Resource, Role, Service, Staff, WeeklyShift
 from apps.tenants.models import Tenant
 
@@ -25,9 +25,10 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--reset", action="store_true")
+        parser.add_argument("--with-users", action="store_true")
 
     @transaction.atomic
-    def handle(self, *args, reset=False, **options):
+    def handle(self, *args, reset=False, with_users=False, **options):
         if reset:
             Booking.objects.filter(tenant__subdomain=SUBDOMAIN).delete()
             Tenant.objects.filter(subdomain=SUBDOMAIN).delete()
@@ -71,21 +72,21 @@ class Command(BaseCommand):
         ]
         for service in services:
             service.staff.set(staff)
-        password = os.environ.get("DEMO_USER_PASSWORD")
-        if password:
+        if with_users:
             users = get_user_model().objects
             for email, role, member in (
                 ("owner@fushimi.example", Role.OWNER, staff[0]),
                 ("staff@fushimi.example", Role.STAFF, staff[1]),
             ):
                 user = users.filter(username=email).first() or users.create_user(username=email, email=email)
-                user.set_password(password)
-                user.save()
                 Membership.objects.create(tenant=store, user=user, role=role, staff=member)
-                # デモ・E2E用：オーナーの二段階認証を、決まった鍵で設定済みにする（鍵を渡したときだけ）
-                totp_secret = os.environ.get("DEMO_TOTP_SECRET")
-                if role == Role.OWNER and totp_secret:
-                    TwoFactor.objects.update_or_create(
-                        user=user, defaults={"secret": totp_secret, "confirmed_at": timezone.now(), "last_used_step": 0}
-                    )
+                account, _ = SocialAccount.objects.get_or_create(user=user, provider="google", uid=email)
+                SocialToken.objects.update_or_create(
+                    account=account,
+                    defaults={
+                        "token": "e2e",
+                        "token_secret": "e2e",
+                        "expires_at": timezone.now() + timedelta(days=365),
+                    },
+                )
         self.stdout.write("created")

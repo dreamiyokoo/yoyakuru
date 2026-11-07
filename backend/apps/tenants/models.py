@@ -32,8 +32,6 @@ class Tenant(models.Model):
     )
     default_buffer_minutes = models.PositiveSmallIntegerField("準備時間の既定値（分）", default=0)
     # チャットのAIが答えてよい店舗の案内（CHAT-05）。ここにない事項は断定しない
-    # カレンダー配信（CAL-07）に、お客様の名前を含めるか。連絡先は含めない
-    calendar_shows_customer_name = models.BooleanField("カレンダー配信にお客様の名前を含める", default=False)
     guide = models.TextField("お客様への案内", blank=True, help_text="アクセス・駐車場・支払い方法・持ち物など")
 
     class Meta:

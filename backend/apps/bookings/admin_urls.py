@@ -10,9 +10,5 @@ urlpatterns = [
     path("bookings/<int:pk>/cancel", v.BookingCancelView.as_view()),
     path("bookings/<int:pk>/reschedule", v.BookingRescheduleView.as_view()),
     path("availability", v.AdminAvailabilityView.as_view()),
-    path("calendar", v.CalendarView.as_view()),
-    path("calendar-feed", v.CalendarFeedView.as_view()),
-    path("time-offs", v.TimeOffListView.as_view()),
-    path("time-offs/<int:pk>", v.TimeOffDetailView.as_view()),
     path("settings/", include("apps.stores.settings_urls")),
 ]

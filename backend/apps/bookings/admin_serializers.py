@@ -1,7 +1,5 @@
 from rest_framework import serializers
 
-from apps.stores.models import TimeOff
-
 from .models import Booking, BookingEvent, CustomerType
 
 
@@ -71,22 +69,4 @@ class DateRangeSerializer(serializers.Serializer):
             raise serializers.ValidationError("期間の指定が正しくありません")
         if (attrs["date_to"] - attrs["date_from"]).days > 62:
             raise serializers.ValidationError("期間は62日以内で指定してください")
-        return attrs
-
-
-class TimeOffSerializer(serializers.ModelSerializer):
-    staff_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = TimeOff
-        fields = ["id", "staff", "staff_name", "starts_at", "ends_at", "reason"]
-        read_only_fields = ["id", "staff_name"]
-        extra_kwargs = {"staff": {"required": False, "allow_null": True}}
-
-    def get_staff_name(self, obj):
-        return obj.staff.display_name if obj.staff else "店舗全体"
-
-    def validate(self, attrs):
-        if attrs["ends_at"] <= attrs["starts_at"]:
-            raise serializers.ValidationError("終了は開始より後にしてください")
         return attrs

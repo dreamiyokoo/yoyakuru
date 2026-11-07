@@ -5,13 +5,14 @@ import type { AdminBooking, Me } from "@/lib/adminTypes";
 import { mockFetch } from "@/test-utils";
 import { AdminProvider } from "../AdminContext";
 import { SettingsPage } from "./SettingsPage";
+import { StaffTab } from "./StaffTab";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
   usePathname: () => "/settings",
 }));
 
-const owner: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
+const owner: Me = { email: "o@example.com", name: "院長", calendar_connected: true, memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
 const staffMe: Me = { ...owner, memberships: [{ ...owner.memberships[0], role: "staff", staff_id: 11, billing_required: false, billing_managed: false }] };
 
 const affected: AdminBooking = {
@@ -35,7 +36,7 @@ function backend({ affects = [] as string[], fail = "", me = owner } = {}) {
       { id: 1, name: "全身調整", category: "", description: "", price: 5000, duration_minutes: 60, first_visit_duration_minutes: 90, buffer_before_minutes: 0, buffer_after_minutes: 10, staff: [10], resource: 5, resource_quantity: 1, capacity: 1, is_active: true, sort_order: 0 },
       { id: 2, name: "ヨガ", category: "", description: "", price: null, duration_minutes: 60, first_visit_duration_minutes: null, buffer_before_minutes: 0, buffer_after_minutes: 0, staff: [], resource: null, resource_quantity: 1, capacity: 8, is_active: false, sort_order: 1 },
     ],
-    staff: [{ id: 10, display_name: "Aさん", title: "院長", priority: 1, is_active: true }, { id: 11, display_name: "Bさん", title: "", priority: 2, is_active: false }],
+    staff: [{ id: 10, display_name: "Aさん", title: "院長", priority: 1, is_active: true, calendar_connected: true }, { id: 11, display_name: "Bさん", title: "", priority: 2, is_active: false, calendar_connected: false }],
     "staff/10/shifts": { weekly: [{ weekday: 0, starts_at: "10:00:00", ends_at: "19:00:00" }], exceptions: [{ id: 9, date: "2026-11-20", is_off: true, starts_at: null, ends_at: null }, { id: 8, date: "2026-11-21", is_off: false, starts_at: "10:00:00", ends_at: "15:00:00" }, { id: 6, date: "2026-01-01", is_off: true, starts_at: null, ends_at: null }] },
   } as Record<string, unknown>;
   const calls = mockFetch((url, init) => {
@@ -95,10 +96,9 @@ describe("settings", () => {
     await userEvent.clear(screen.getByLabelText("何日先まで受け付けるか（日）"));
     await userEvent.type(screen.getByLabelText("何日先まで受け付けるか（日）"), "90");
     for (const label of ["電話番号", "住所", "準備時間の既定値（分）"]) await userEvent.type(screen.getByLabelText(label), "1");
-    await userEvent.click(screen.getByRole("checkbox", { name: "カレンダー配信にお客様の名前を含める" }));
     await userEvent.click(screen.getByRole("button", { name: "保存する" }));
     expect(await screen.findByText("保存しました。")).toBeInTheDocument();
-    expect(be.writes()[0]).toMatchObject({ path: "store", method: "PUT", body: { name: "伏見整体", calendar_shows_customer_name: true, slot_interval_minutes: 15, same_day_cutoff_minutes: 1440, cancel_deadline_days: 2, booking_window_days: 90 } });
+    expect(be.writes()[0]).toMatchObject({ path: "store", method: "PUT", body: { name: "伏見整体", slot_interval_minutes: 15, same_day_cutoff_minutes: 1440, cancel_deadline_days: 2, booking_window_days: 90 } });
   });
 
   it("shows load errors", async () => {
@@ -310,5 +310,17 @@ describe("settings", () => {
     expect(await screen.findByRole("tab", { name: "AIで設定", selected: true })).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "変更前の確認" })).not.toBeInTheDocument();
     expect(be.writes()).toEqual([]);
+  });
+});
+
+describe("calendar connection of staff", () => {
+  it("warns that an active staff member without a Google calendar is hidden from the booking page", async () => {
+    mockFetch((url) =>
+      url.endsWith("/settings/staff")
+        ? { body: [{ id: 10, display_name: "Aさん", title: "", priority: 1, is_active: true, calendar_connected: false }, { id: 11, display_name: "Bさん", title: "", priority: 2, is_active: true, calendar_connected: true }] }
+        : { body: [] },
+    );
+    render(<StaffTab sub="fushimi" />);
+    expect(await screen.findAllByText(/Googleカレンダー未接続/)).toHaveLength(1);
   });
 });

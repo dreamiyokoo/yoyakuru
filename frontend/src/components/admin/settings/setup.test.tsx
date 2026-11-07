@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/settings",
 }));
 
-const owner: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
+const owner: Me = { email: "o@example.com", name: "院長", calendar_connected: true, memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
 
 const STEPS = [
   { label: "設備「ベッド」を2で追加", path: "resources", method: "POST", body: { name: "ベッド", quantity: 2 }, ref: "resource:ベッド" },

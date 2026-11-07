@@ -1,6 +1,7 @@
 """予約の仮押さえ・確定・取消（BOOK-05〜07、CUST-02〜06、TIME-06）。
 
-同時の確定で二重予約にならないよう、店舗の行をロックしてから空きを再確認する（AC-06）。
+同時の確定で二重予約にならないよう、店舗の行をロックしてから、Googleカレンダーの予定を取り直して
+空きを再確認する（AC-06）。確定・変更・取消は、担当スタッフのGoogleカレンダーに反映する。
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from apps.stores.models import Service, Staff
 from apps.tenants.models import Tenant
 
 from .availability import available_slots, choose_staff, store_tz
+from .calendar_sync import queue_sync
 from .models import Booking, BookingEvent, BookingStatus, Channel
 
 HOLD_MINUTES = 15
@@ -68,7 +70,15 @@ def create_booking(
                 return HoldResult(existing, replayed=True)
         day = starts_at.astimezone(store_tz(store)).date()
         slots = available_slots(
-            store, service, day, customer_type, staff, now, party_size, enforce_cutoff=channel != Channel.ADMIN
+            store,
+            service,
+            day,
+            customer_type,
+            staff,
+            now,
+            party_size,
+            enforce_cutoff=channel != Channel.ADMIN,
+            fresh_busy=True,
         )
         slot = next((s for s in slots if s.starts_at == starts_at), None)
         if slot is None:
@@ -101,6 +111,8 @@ def create_booking(
             idempotency_key=idempotency_key or None,
         )
         _event(booking, "confirmed" if confirm else "held", channel, actor)
+        if confirm:
+            queue_sync(booking.pk)
     return HoldResult(booking)
 
 
@@ -118,6 +130,7 @@ def confirm_by_token(token: str, now: datetime | None = None) -> Booking:
             booking.confirmed_at = now
             booking.save(update_fields=["status", "confirmed_at"])
             _event(booking, "confirmed", booking.channel)
+            queue_sync(booking.pk)
             return booking
         if booking.status == BookingStatus.HOLD:
             booking.status = BookingStatus.EXPIRED
@@ -155,6 +168,7 @@ def cancel_by_token(token: str, now: datetime | None = None) -> Booking:
         booking.cancelled_at = now
         booking.save(update_fields=["status", "cancelled_at"])
         _event(booking, "cancelled", Channel.WEB)
+        queue_sync(booking.pk)
     return booking
 
 
@@ -171,6 +185,7 @@ def cancel_by_store(booking: Booking, actor, now: datetime | None = None) -> Boo
         locked.cancelled_at = now
         locked.save(update_fields=["status", "cancelled_at"])
         _event(locked, "cancelled", Channel.ADMIN, actor)
+        queue_sync(locked.pk)
     return locked
 
 
@@ -195,6 +210,7 @@ def reschedule_booking(
             locked.party_size,
             exclude_booking_id=locked.pk,
             enforce_cutoff=False,
+            fresh_busy=True,
         )
         slot = next((s for s in slots if s.starts_at == starts_at), None)
         if slot is None:
@@ -206,6 +222,7 @@ def reschedule_booking(
         locked.auto_assigned = False
         locked.save(update_fields=["staff", "starts_at", "ends_at", "occupied_from", "occupied_until", "auto_assigned"])
         _event(locked, "rescheduled", Channel.ADMIN, actor, before=before)
+        queue_sync(locked.pk)
     return locked
 
 

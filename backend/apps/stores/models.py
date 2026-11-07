@@ -26,7 +26,7 @@ class Weekday(models.IntegerChoices):
 
 
 class Staff(TenantOwnedModel):
-    """予約の担当者。ログインユーザーとは別に持つ（3章）。"""
+    """予約の担当者。ログインユーザーとは別に持つ（3章）。Googleカレンダーは所属するユーザーのものを使う。"""
 
     display_name = models.CharField("表示名", max_length=50)
     title = models.CharField("肩書き", max_length=50, blank=True)
@@ -34,8 +34,6 @@ class Staff(TenantOwnedModel):
         "指名なしの優先順位", default=100, help_text="小さいほど優先（ASSIGN-01）"
     )
     is_active = models.BooleanField("有効", default=True)
-    # 自分の予約を読み取り専用で配信するカレンダーURLのトークン（CAL-06）。再発行で古いURLは無効になる
-    calendar_token = models.CharField(max_length=64, null=True, blank=True, unique=True, editable=False)  # noqa: DJ001
 
     class Meta:
         verbose_name = verbose_name_plural = "担当者"
@@ -46,7 +44,7 @@ class Staff(TenantOwnedModel):
 
 
 class Membership(TenantOwnedModel):
-    """ログインユーザーの店舗所属と権限。"""
+    """ログインユーザーの店舗所属と権限。スタッフは本人のGoogleカレンダーを接続して担当する（TimeRex型）。"""
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="memberships")
     role = models.CharField("権限", max_length=10, choices=Role.choices)
@@ -176,31 +174,6 @@ class RecurringBreak(TenantOwnedModel):
 
     class Meta:
         verbose_name = verbose_name_plural = "定例の休憩"
-
-
-class TimeOff(TenantOwnedModel):
-    """臨時の休み・予約不可時間（BREAK-02）。担当者が空なら店舗全体。"""
-
-    staff = models.ForeignKey(Staff, null=True, blank=True, on_delete=models.CASCADE, related_name="time_offs")
-    starts_at = models.DateTimeField("開始")
-    ends_at = models.DateTimeField("終了")
-    reason = models.CharField("理由（お客様には表示しない）", max_length=100, blank=True)
-
-    class Meta:
-        verbose_name = verbose_name_plural = "休み・予約不可時間"
-
-
-class Holiday(models.Model):
-    """祝日（CAL-02）。全店舗共通の表示用で、営業するかは DateOverride で決める。"""
-
-    date = models.DateField("日付", unique=True)
-    name = models.CharField("名前", max_length=50)
-
-    class Meta:
-        verbose_name = verbose_name_plural = "祝日"
-
-    def __str__(self) -> str:
-        return f"{self.date} {self.name}"
 
 
 class SettingChange(TenantOwnedModel):

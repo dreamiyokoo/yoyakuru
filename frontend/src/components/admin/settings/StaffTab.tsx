@@ -15,6 +15,8 @@ export interface StaffSetting {
   title: string;
   priority: number;
   is_active: boolean;
+  /** 本人のGoogleカレンダーが接続済みか。未接続だと予約枠に出ない */
+  calendar_connected: boolean;
 }
 interface Shift {
   weekday: number;
@@ -62,6 +64,9 @@ export function StaffTab({ sub, onChanged, today = toDateKey(new Date()) }: { su
               <span className="font-bold">{s.display_name}</span>
               {s.is_active ? "" : "（停止中）"}
               {s.title ? <span className="block text-sub">{s.title}</span> : null}
+              {s.is_active && !s.calendar_connected ? (
+                <span className="block text-xs font-bold text-danger">Googleカレンダー未接続（予約枠は非表示）。本人のログインが必要です</span>
+              ) : null}
             </span>
             <button type="button" aria-label={`${s.display_name}を上へ`} disabled={busy || i === 0} className="min-h-11 min-w-11 rounded-md border border-line disabled:opacity-40" onClick={() => move(i, -1)}>
               ↑

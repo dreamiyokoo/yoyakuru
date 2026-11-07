@@ -44,49 +44,17 @@ def test_last_slot_race(service, staff):
     assert Booking.objects.filter(starts_at=at(10)).count() == 1
 
 
-def _verify_at_once(user, code: str, n: int = 5) -> list[bool]:
-    from apps.core import two_factor
-
-    results: list[bool] = []
-    barrier = threading.Barrier(n)
-
-    def worker() -> None:
-        try:
-            barrier.wait()
-            results.append(two_factor.verify(user, code))
-        finally:
-            connection.close()
-
-    threads = [threading.Thread(target=worker) for _ in range(n)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    return results
-
-
-@pytest.mark.django_db(transaction=True)
-def test_same_second_factor_code_is_accepted_only_once(owner):
-    """同じ6桁・同じ回復コードを同時に送っても、通るのは1回だけ。"""
-    import pyotp
-    from django.contrib.auth.hashers import make_password
-
-    from apps.core.models import TwoFactor
-
-    TwoFactor.objects.filter(user=owner).update(recovery_codes=[make_password("abcde12345")])
-    assert _verify_at_once(owner, pyotp.TOTP("JBSWY3DPEHPK3PXP").now()).count(True) == 1
-    assert _verify_at_once(owner, "abcde-12345").count(True) == 1
-
-
 @pytest.mark.django_db(transaction=True)
 def test_an_invitation_can_be_accepted_only_once(store, staff, owner):
     """同じ招待を同時に受け入れても、参加できるのは1回だけ。"""
     from datetime import timedelta
 
     from django.utils import timezone
-    from rest_framework.test import APIClient
 
+    from apps.stores.invitations import InvitationError, accept_invitation
     from apps.stores.models import Invitation, Membership
+
+    from .conftest import user
 
     Invitation.objects.create(
         tenant=store,
@@ -95,16 +63,17 @@ def test_an_invitation_can_be_accepted_only_once(store, staff, owner):
         token="race-token",
         expires_at=timezone.now() + timedelta(days=1),
     )
-    results: list[int] = []
+    invited = user("race@example.com")
+    results: list[str] = []
     barrier = threading.Barrier(4)
 
     def worker() -> None:
         try:
             barrier.wait()
-            r = APIClient().post(
-                "/api/v1/auth/invitations/race-token/accept", {"password": "a-good-pass-2026"}, format="json"
-            )
-            results.append(r.status_code)
+            accept_invitation(invited, "race-token")
+            results.append("ok")
+        except InvitationError as e:
+            results.append(e.code)
         finally:
             connection.close()
 
@@ -113,4 +82,21 @@ def test_an_invitation_can_be_accepted_only_once(store, staff, owner):
         t.start()
     for t in threads:
         t.join()
-    assert results.count(200) == 1 and Membership.objects.filter(user__email="race@example.com").count() == 1
+    assert results.count("ok") == 1 and results.count("invalid_invitation") == 3
+    assert Membership.objects.filter(user=invited).count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_google_event_appears_while_booking_is_being_confirmed_blocks_the_slot(service, staff, gcal):
+    """確定の直前に、Googleカレンダーへ予定が入ったら（キャッシュが古くても）二重予約にしない。"""
+    from apps.bookings.availability import available_slots
+
+    from .conftest import NOW
+
+    service.staff.set(staff[:1])
+    owner = gcal.owner_of(staff[0])
+    assert any(s.starts_at == at(10) for s in available_slots(service.tenant, service, at(10).date(), now=NOW))
+    gcal.add_busy(owner, at(10), at(11))  # 画面に空きを出した後で、本人がGoogleに予定を入れた
+    with pytest.raises(BookingError) as e:
+        create_booking(service.tenant, service=service, starts_at=at(10), customer_name="x", now=NOW)
+    assert e.value.code == "slot_unavailable"

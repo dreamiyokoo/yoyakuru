@@ -1,14 +1,13 @@
-# 利用開始の画面（登録 → 二段階認証 → お支払い）の上書きルール
+# 利用開始の画面（登録 → お支払い）の上書きルール
 
-作成日：2026-11-07。MASTER.md に対し、`app.` の `/signup` と、利用開始前の二段階認証・お支払いの画面では次を優先する。
+作成日：2026-11-07。MASTER.md に対し、`app.` の `/signup` と、利用開始前のお支払いの画面では次を優先する。
 UI UX Pro Max の検索（`--domain ux`）：Progress Indicators、Password Visibility、Inline Validation（blur）、
 Error Placement、Focusable Error Summary、Loading Buttons、Submit Feedback。
 
 ## 構成
 
-- 共通の枠 `Onboarding`：ロゴ、手順（1. 登録 → 2. 二段階認証 → 3. お支払い）、見出し、説明、白いカード。背景は #ECFEFF
+- 共通の枠 `Onboarding`：ロゴ、手順（1. 登録 → 2. お支払い）、見出し、説明、白いカード。背景は #ECFEFF
 - 利用を始めるまでは、管理画面のタブ・「追加」ボタンを出さない（押しても使えないため）。ログアウトだけ置く
-- 運営が作った店舗（お支払いなし）のオーナーが二段階認証を設定するときは、手順を出さない
 
 ## 入力
 
