@@ -56,7 +56,7 @@ class TestAuth:
                 "billing_managed": False,
             }
         ]
-        assert r.json()["two_factor_enabled"] is False and r.json()["two_factor_required"] is False
+        assert r.json()["two_factor_enabled"] is False
         assert c.get("/api/v1/auth/me").status_code == 200
         token = c.cookies["csrftoken"].value
         assert c.post("/api/v1/auth/logout", HTTP_X_CSRFTOKEN=token).status_code == 200

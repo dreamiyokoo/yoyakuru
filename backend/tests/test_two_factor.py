@@ -49,14 +49,13 @@ def test_pending_login_expires_and_is_required(owner, monkeypatch):
     assert c.post("/api/v1/auth/login/code", {"code": code()}, format="json").json()["code"] == "expired"
 
 
-def test_owner_without_two_factor_must_set_it_up_before_managing(store, staff):
+def test_owner_can_manage_without_two_factor_and_set_it_up_optionally(store, staff):
     u = user("new-owner@example.com")
     Membership.objects.create(tenant=store, user=u, role=Role.OWNER, staff=staff[0])
     c = client_for(u)
     me = c.get("/api/v1/auth/me").json()
-    assert me["two_factor_required"] is True and me["two_factor_enabled"] is False
-    r = c.get("/api/v1/admin/tenants/fushimi/options")
-    assert r.status_code == 403 and "二段階認証" in r.json()["detail"]
+    assert me["two_factor_enabled"] is False and "two_factor_required" not in me
+    assert c.get("/api/v1/admin/tenants/fushimi/options").status_code == 200  # 二段階認証は任意（LOGIN-07）
 
     setup = c.post("/api/v1/auth/2fa/setup").json()
     assert setup["uri"].startswith("otpauth://totp/") and setup["qr_svg"].startswith(
@@ -67,7 +66,6 @@ def test_owner_without_two_factor_must_set_it_up_before_managing(store, staff):
     assert c.post("/api/v1/auth/2fa/confirm", {"code": code(setup["secret"])}, format="json").status_code == 400
     r = c.post("/api/v1/auth/2fa/confirm", {"code": code(again["secret"])}, format="json")
     assert r.status_code == 200 and len(r.json()["recovery_codes"]) == 8 and r.json()["two_factor_enabled"]
-    assert c.get("/api/v1/admin/tenants/fushimi/options").status_code == 200
     assert c.post("/api/v1/auth/2fa/setup").json()["code"] == "already_enabled"
 
     # 回復コードは1回ずつ使える
@@ -79,7 +77,6 @@ def test_owner_without_two_factor_must_set_it_up_before_managing(store, staff):
 
 
 def test_staff_can_enable_it_optionally_and_codes_are_validated(member):
-    assert two_factor.required_for(member) is False
     tf = TwoFactor.objects.create(user=member, secret=SECRET, confirmed_at=timezone.now())
     assert two_factor.verify(member, "abc") is False
     assert two_factor.verify(member, code(offset=-30)) is True  # 30秒前のコードも受け付ける

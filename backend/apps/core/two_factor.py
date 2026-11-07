@@ -12,18 +12,11 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.db import transaction
 from django.utils import timezone
 
-from apps.stores.models import Membership, Role
-
 from .models import TwoFactor
 
 ISSUER = "ヨヤクル"
 STEP = 30
 RECOVERY_COUNT = 8
-
-
-def required_for(user) -> bool:
-    """オーナーとして所属している利用者は、二段階認証が必須（LOGIN-07）。"""
-    return Membership.objects.filter(user=user, role=Role.OWNER, is_active=True).exists()
 
 
 def enabled_for(user) -> bool:
@@ -108,7 +101,7 @@ def regenerate_recovery_codes(user, code: str) -> list[str] | None:
 
 
 def reset(user) -> bool:
-    """二段階認証を外す。次のログインで、オーナーは設定し直す（端末の紛失など）。"""
+    """二段階認証を外す（端末の紛失など）。次のログインはパスワードだけになる。"""
     deleted, _ = TwoFactor.objects.filter(user=user).delete()
     return deleted > 0
 

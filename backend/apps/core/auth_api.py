@@ -45,7 +45,6 @@ def me_payload(user) -> dict:
     )
     return {
         "two_factor_enabled": two_factor.enabled_for(user),
-        "two_factor_required": two_factor.required_for(user),
         "email": user.email,
         "name": user.get_full_name() or user.get_username(),
         "memberships": [

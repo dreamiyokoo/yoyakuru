@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from apps.stores.models import BusinessHours, DateOverride, RecurringBreak, Resource, Service, Staff
+from apps.stores.models import BusinessHours, DateOverride, RecurringBreak, Resource, Service, Staff, WeeklyShift
 from apps.tenants.models import Tenant
 
 from .conftest import DAY, client_for
@@ -194,3 +194,25 @@ def test_reducing_resources_reports_existing_groups(store, staff, beds, owner):
     assert {x["id"] for x in r.json()["affected_bookings"]} == ids
     r = c.patch(f"{S}/resources/{beds.id}?dry_run=1", {"quantity": 2}, format="json")
     assert r.json()["affected_bookings"] == []
+
+
+def test_warnings_for_settings_that_leave_no_slots(service, staff, owner):
+    c = client_for(owner)
+    assert c.get(f"{S}/warnings").json() == {"warnings": []}
+
+    BusinessHours.objects.create(tenant=service.tenant, weekday=6, opens_at="10:00", closes_at="20:00")  # 日曜も営業
+    WeeklyShift.objects.filter(staff=staff[0], weekday=5).update(starts_at="20:00", ends_at="21:00")  # 営業時間の外
+    WeeklyShift.objects.filter(staff__in=staff[1:], weekday=5).delete()
+    Service.objects.create(tenant=service.tenant, name="足つぼ", duration_minutes=30).staff.set([staff[2]])
+    Staff.objects.filter(pk=staff[2].pk).update(is_active=False)
+    Service.objects.create(tenant=service.tenant, name="非公開", duration_minutes=30, is_active=False)
+    warnings = c.get(f"{S}/warnings").json()["warnings"]
+    assert warnings == [
+        "営業日なのに勤務している担当者がいません（土・日）。「担当者」の「勤務」で週の勤務を入れてください。",
+        "担当できる人がいないサービスがあります（足つぼ）。「サービス」の「担当できる人」を選んでください。",
+    ]
+
+    BusinessHours.objects.filter(tenant=service.tenant).delete()
+    assert c.get(f"{S}/warnings").json()["warnings"] == [
+        "営業時間が設定されていません。「営業時間」で曜日ごとの時間を入れてください。"
+    ]

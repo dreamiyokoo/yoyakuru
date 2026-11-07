@@ -39,8 +39,8 @@ def test_owner_resets_with_a_recovery_code_and_sets_up_a_new_device(owner):
     codes = c.post("/api/v1/auth/2fa/recovery-codes", {"code": code(-30)}, format="json").json()["recovery_codes"]
     assert c.post("/api/v1/auth/2fa/reset", {"code": "nope"}, format="json").status_code == 400
     me = c.post("/api/v1/auth/2fa/reset", {"code": codes[0]}, format="json").json()
-    assert me["two_factor_enabled"] is False and me["two_factor_required"] is True
-    assert c.get("/api/v1/admin/tenants/fushimi/options").status_code == 403  # 設定し直すまで使えない
+    assert me["two_factor_enabled"] is False
+    assert c.get("/api/v1/admin/tenants/fushimi/options").status_code == 200  # 外しても管理画面は使える
     setup = c.post("/api/v1/auth/2fa/setup").json()
     r = c.post("/api/v1/auth/2fa/confirm", {"code": pyotp.TOTP(setup["secret"]).now()}, format="json")
     assert r.status_code == 200 and c.get("/api/v1/admin/tenants/fushimi/options").status_code == 200
@@ -56,10 +56,10 @@ def test_another_owner_resets_a_member_who_lost_everything(store, staff, owner):
     r = c.post(f"{S}/members/{mid}/reset-2fa")
     assert r.status_code == 200 and r.json()["two_factor_enabled"] is False
     assert not TwoFactor.objects.filter(user=other).exists()
-    # パスワードだけでログインでき、オーナーなので設定し直すまで管理はできない
+    # パスワードだけでログインできる
     fresh = APIClient()
     me = fresh.post("/api/v1/auth/login", {"email": other.email, "password": "pw-123456!"}, format="json").json()
-    assert me["two_factor_required"] is True and me["two_factor_enabled"] is False
+    assert me["email"] == other.email and me["two_factor_enabled"] is False
     own = Membership.objects.get(user=owner).id
     assert c.post(f"{S}/members/{own}/reset-2fa").status_code == 400  # 自分自身は外せない
 

@@ -194,7 +194,7 @@ export function LandingPage({ demoUrl, signupUrl, priceLabel }: { demoUrl?: stri
             </div>
             <div className="flex flex-col gap-5 rounded-2xl bg-card p-6 text-ink shadow-xl md:p-8">
               <ol className="flex flex-col gap-3">
-                {["お店の名前とメールアドレスで登録", "ログインを守る二段階認証を設定", "クレジットカードでお支払いを登録"].map((t, i) => (
+                {["お店の名前とメールアドレスで登録", "クレジットカードでお支払いを登録"].map((t, i) => (
                   <li key={t} className="flex items-center gap-3 font-bold">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-button text-sm text-white">{i + 1}</span>
                     {t}

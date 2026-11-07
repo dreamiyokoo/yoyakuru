@@ -49,7 +49,7 @@ def test_owner_invites_new_staff_who_creates_an_account(store, staff, owner):
     assert {x["email"] for x in listing["members"]} == {"owner@example.com", "new@example.com"}
 
 
-def test_existing_account_joins_with_its_password_and_owner_role_requires_2fa(store, staff, owner):
+def test_existing_account_joins_with_its_password_as_owner(store, staff, owner):
     other = user("other@example.com")
     c = client_for(owner)
     c.post(f"{S}/invitations", {"email": "other@example.com", "role": "owner"}, format="json")
@@ -60,9 +60,9 @@ def test_existing_account_joins_with_its_password_and_owner_role_requires_2fa(st
     assert bad.status_code == 400 and bad.json()["code"] == "invalid_login"
     r = anon.post(f"/api/v1/auth/invitations/{token}/accept", {"password": "pw-123456!"}, format="json")
     assert r.status_code == 200 and r.json()["memberships"][0]["role"] == "owner"
-    assert r.json()["two_factor_required"] is True and r.json()["two_factor_enabled"] is False
+    assert r.json()["two_factor_enabled"] is False
     assert Membership.objects.get(user=other).role == Role.OWNER
-    assert anon.get("/api/v1/admin/tenants/fushimi/options").status_code == 403  # オーナーは二段階認証の設定が先
+    assert anon.get("/api/v1/admin/tenants/fushimi/options").status_code == 200  # 二段階認証は任意
 
 
 def test_invitation_rules(store, staff, owner, member):

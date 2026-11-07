@@ -70,7 +70,7 @@ def owner(store, staff):
 
     u = user("owner@example.com")
     Membership.objects.create(tenant=store, user=u, role=Role.OWNER, staff=staff[0])
-    enable_two_factor(u)  # オーナーは二段階認証が必須（LOGIN-07）
+    enable_two_factor(u)  # ログインで認証アプリのコードを求める流れを試すため
     return u
 
 

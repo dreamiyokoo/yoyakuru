@@ -62,7 +62,7 @@ class TestSignup:
         assert r.status_code == 201
         me = r.json()
         assert me["email"] == "komorebi@example.com" and me["name"] == "木漏 日子"
-        assert me["two_factor_required"] is True and me["two_factor_enabled"] is False
+        assert me["two_factor_enabled"] is False
         assert me["memberships"] == [
             {
                 "subdomain": "komorebi",

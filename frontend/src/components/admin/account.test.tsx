@@ -12,7 +12,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/account",
 }));
 
-const owner: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
+const owner: Me = { two_factor_enabled: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
 
 function csrf(url: string) {
   if (url.endsWith("/auth/csrf")) {
@@ -70,44 +70,30 @@ describe("account", () => {
     expect(screen.getByText(/古い回復コードは使えなくなりました/)).toBeInTheDocument();
   });
 
-  it("an owner who resets moves straight to setting up the new device", async () => {
-    mockFetch((url) => {
-      const c = csrf(url);
-      if (c) return c;
-      if (url.endsWith("/auth/me")) return { body: owner };
-      if (url.endsWith("/2fa/reset")) return { body: { ...owner, two_factor_enabled: false } };
-      return { body: {} };
-    });
-    renderWith(<AccountPage />);
-    await userEvent.type(await screen.findByLabelText("認証アプリの6桁（または回復コード）"), "abcde-12345");
-    await userEvent.click(screen.getByRole("button", { name: /認証アプリを変更する/ }));
-    expect(await screen.findByText("二段階認証を設定してください")).toBeInTheDocument();
-  });
-
-  it("staff can remove it, or set it up optionally", async () => {
-    const staff = { ...owner, two_factor_required: false, memberships: [{ ...owner.memberships[0], role: "staff" as const }] };
+  it("anyone can remove it, then set it up again on a new device", async () => {
     let enabled = true;
     mockFetch((url) => {
       const c = csrf(url);
       if (c) return c;
-      if (url.endsWith("/auth/me")) return { body: { ...staff, two_factor_enabled: enabled } };
+      if (url.endsWith("/auth/me")) return { body: { ...owner, two_factor_enabled: enabled } };
       if (url.endsWith("/2fa/reset")) {
         enabled = false;
-        return { body: { ...staff, two_factor_enabled: false } };
+        return { body: { ...owner, two_factor_enabled: false } };
       }
       if (url.endsWith("/2fa/setup")) return { body: { secret: "S", uri: "otpauth://x", qr_svg: "<svg/>" } };
-      if (url.endsWith("/2fa/confirm")) return { body: { ...staff, two_factor_enabled: true, recovery_codes: ["ccccc-33333"] } };
+      if (url.endsWith("/2fa/confirm")) return { body: { ...owner, two_factor_enabled: true, recovery_codes: ["ccccc-33333"] } };
       return { body: {} };
     });
     renderWith(<AccountPage />);
     await userEvent.type(await screen.findByLabelText("認証アプリの6桁（または回復コード）"), "123456");
-    await userEvent.click(screen.getByRole("button", { name: /認証アプリを変更する/ }));
-    expect(await screen.findByText("二段階認証を外しました。")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "二段階認証を外す" }));
+    expect(await screen.findByText(/二段階認証を外しました。/)).toBeInTheDocument();
+    expect(screen.getByText(/任意です。/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "二段階認証を設定する" }));
     await userEvent.click(await screen.findByRole("button", { name: "設定を始める" }));
     await userEvent.type(await screen.findByLabelText("認証アプリに表示された6桁"), "123456");
     await userEvent.click(screen.getByRole("button", { name: "確認して有効にする" }));
-    await userEvent.click(await screen.findByRole("button", { name: "保存しました。次へ進む" }));
+    await userEvent.click(await screen.findByRole("button", { name: "回復コードを保存しました" }));
     expect(await screen.findByText("二段階認証を設定しました。")).toBeInTheDocument();
   });
 

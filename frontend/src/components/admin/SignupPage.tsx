@@ -36,7 +36,7 @@ export function check(field: FieldName, v: Values): string | undefined {
   return undefined;
 }
 
-/** 店舗の新規登録。登録するとログインした状態になり、二段階認証 → お支払いへ進む。 */
+/** 店舗の新規登録。登録するとログインした状態になり、お支払いへ進む。 */
 export function SignupPage() {
   const router = useRouter();
   const { signedIn } = useAdmin();
@@ -101,7 +101,7 @@ export function SignupPage() {
     <Onboarding
       step={1}
       title="ヨヤクルに登録する"
-      lead={<p>登録のあと、二段階認証の設定とお支払いの登録に進みます。登録だけでは料金はかかりません。</p>}
+      lead={<p>登録のあと、お支払いの登録に進みます。登録だけでは料金はかかりません。</p>}
     >
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         {attempted && listed.length ? (

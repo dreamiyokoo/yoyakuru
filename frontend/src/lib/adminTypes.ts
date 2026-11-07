@@ -25,9 +25,8 @@ export interface Billing {
 }
 
 export interface Me {
-  /** 二段階認証を設定済みか。オーナーは必須（two_factor_required） */
+  /** 二段階認証を設定済みか（任意） */
   two_factor_enabled: boolean;
-  two_factor_required: boolean;
   email: string;
   name: string;
   memberships: Membership[];

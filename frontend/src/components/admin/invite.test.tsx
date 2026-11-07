@@ -77,7 +77,6 @@ describe("invitation", () => {
       </AdminProvider>,
     );
     await userEvent.type(await screen.findByLabelText("パスワード"), "pw");
-    expect(screen.getByText(/二段階認証の設定が必要/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "参加する" }));
     await userEvent.type(await screen.findByLabelText("確認コード"), "123456");
     await userEvent.click(screen.getByRole("button", { name: "参加する" }));
