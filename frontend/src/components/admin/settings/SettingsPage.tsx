@@ -15,6 +15,7 @@ import { RulesTab } from "./RulesTab";
 import { ServicesTab } from "./ServicesTab";
 import { SetupTab } from "./SetupTab";
 import { StaffTab, type StaffSetting } from "./StaffTab";
+import { SettingSavedContext } from "./useSettingChange";
 
 const TABS = [
   { id: "setup", label: "AIで設定" },
@@ -42,8 +43,21 @@ export function SettingsPage({ today = toDateKey(new Date()) }: { today?: string
 function Body({ sub, today }: { sub: string; today: string }) {
   const [tab, setTab] = useState<Tab>("setup");
   const staff = useLoad(`${sub}|staff-names`, () => adminApi.setting<StaffSetting[]>(sub, "staff"));
+  // 空き枠が出なくなる設定の抜け（営業日に勤務する担当者がいない など）。保存のたびに読み直す
+  const warnings = useLoad(`${sub}|warnings`, () => adminApi.setting<{ warnings: string[] }>(sub, "warnings"));
+  const notes = warnings.data?.warnings ?? [];
   return (
-    <>
+    <SettingSavedContext.Provider value={warnings.reload}>
+      {notes.length ? (
+        <Notice tone="warn">
+          <p className="font-bold">このままでは、お客様に空き枠が表示されません</p>
+          <ul className="mt-1 flex list-disc flex-col gap-1 pl-5">
+            {notes.map((w) => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        </Notice>
+      ) : null}
       <div role="tablist" aria-label="設定の項目" className="-mx-4 flex gap-1 overflow-x-auto px-4">
         {TABS.map((t) => (
           <button
@@ -68,6 +82,6 @@ function Body({ sub, today }: { sub: string; today: string }) {
         {tab === "members" ? <MembersTab sub={sub} staff={staff.data ?? []} onChanged={staff.reload} /> : null}
         {tab === "history" ? <HistoryTab sub={sub} onChanged={staff.reload} /> : null}
       </div>
-    </>
+    </SettingSavedContext.Provider>
   );
 }
