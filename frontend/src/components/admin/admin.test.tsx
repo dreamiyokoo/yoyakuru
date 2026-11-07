@@ -7,10 +7,8 @@ import { STORE, mockFetch } from "@/test-utils";
 import { AdminProvider } from "./AdminContext";
 import { BookingDetailPage } from "./BookingDetailPage";
 import { BookingListPage } from "./BookingListPage";
-import { CalendarPage, minutesOnDay } from "./CalendarPage";
 import { LoginPage } from "./LoginPage";
 import { NewBookingPage } from "./NewBookingPage";
-import { TimeOffPage } from "./TimeOffPage";
 
 const nav = vi.hoisted(() => ({ replace: vi.fn(), push: vi.fn(), pathname: "/bookings" }));
 vi.mock("next/navigation", () => ({
@@ -18,12 +16,13 @@ vi.mock("next/navigation", () => ({
   usePathname: () => nav.pathname,
 }));
 
-const ME: Me = { two_factor_enabled: true,
+const ME: Me = {
   email: "owner@example.com",
   name: "院長",
+  calendar_connected: true,
   memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }],
 };
-const OPTIONS = { tenant: { subdomain: "fushimi", name: "伏見整体院" }, role: "owner", staff_id: 10, services: STORE.services, staff: STORE.staff };
+const OPTIONS = { tenant: { subdomain: "fushimi", name: "伏見整体院" }, role: "owner", staff_id: 10, services: STORE.services, staff: STORE.staff, calendar_issues: [] };
 const booking = (over: Partial<AdminBooking> = {}): AdminBooking => ({
   id: 7, status: "confirmed", starts_at: "2026-11-11T10:00:00+09:00", ends_at: "2026-11-11T11:00:00+09:00",
   hold_expires_at: null, service: 1, service_name: "全身調整", staff: 10, staff_name: "Aさん", customer_type: "repeat",
@@ -59,20 +58,13 @@ describe("adminApi", () => {
       return { body: {} };
     });
     await adminApi.cancelBooking("fushimi", 1);
-    await adminApi.deleteTimeOff("fushimi", 2);
-    expect(calls.map((c) => c.url)).toEqual([
-      "/api/v1/auth/csrf",
-      "/api/v1/admin/tenants/fushimi/bookings/1/cancel",
-      "/api/v1/admin/tenants/fushimi/time-offs/2",
-    ]);
+    expect(calls.map((c) => c.url)).toEqual(["/api/v1/auth/csrf", "/api/v1/admin/tenants/fushimi/bookings/1/cancel"]);
     expect((calls[1].init?.headers as Record<string, string>)["X-CSRFToken"]).toBe("abc");
   });
   it("builds query strings without empty values", async () => {
     const calls = mockFetch(() => ({ body: [] }));
     await adminApi.bookings("fushimi", "2026-11-11", "2026-11-12", null);
-    await adminApi.timeOffs("fushimi");
     expect(calls[0].url).toBe("/api/v1/admin/tenants/fushimi/bookings?date_from=2026-11-11&date_to=2026-11-12");
-    expect(calls[1].url).toBe("/api/v1/admin/tenants/fushimi/time-offs?");
   });
 });
 
@@ -101,23 +93,31 @@ describe("login and session", () => {
     withAdmin(<BookingListPage today="2026-11-11" />);
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/login"));
   });
-  it("logs in and goes to bookings", async () => {
+  it("starts the Google login and moves to Google", async () => {
     nav.pathname = "/login";
-    let attempts = 0;
-    api((url) => {
-      if (url.endsWith("/auth/login")) {
-        attempts += 1;
-        return attempts === 1 ? { status: 400, body: { message: "メールアドレスかパスワードが違います" } } : { body: ME };
-      }
-    }, null);
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    const calls = api((url) => (url.endsWith("/auth/google/start") ? { body: { url: "/accounts/google/login/?process=login" } } : undefined), null);
     const user = userEvent.setup();
     withAdmin(<LoginPage />);
-    await user.type(screen.getByLabelText("メールアドレス"), "owner@example.com");
-    await user.type(screen.getByLabelText("パスワード"), "pw");
-    await user.click(screen.getByRole("button", { name: "ログイン" }));
-    expect(await screen.findByText("メールアドレスかパスワードが違います")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "ログイン" }));
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/bookings"));
+    expect(screen.queryByLabelText("パスワード")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Googleでログイン" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/accounts/google/login/?process=login"));
+    const start = calls.find((c) => c.url.endsWith("/auth/google/start"));
+    expect(JSON.parse(String(start?.init?.body))).toEqual({ kind: "login" });
+  });
+  it("explains why the Google login did not complete", () => {
+    nav.pathname = "/login";
+    api(() => undefined, null);
+    withAdmin(<LoginPage error="calendar" />);
+    expect(screen.getByText(/カレンダーの権限が許可されていません/)).toBeInTheDocument();
+  });
+  it("shows a message when the Google login cannot be started", async () => {
+    nav.pathname = "/login";
+    api((url) => (url.endsWith("/auth/google/start") ? { status: 429, body: { detail: "リクエストが多すぎます" } } : undefined), null);
+    withAdmin(<LoginPage />);
+    await userEvent.click(screen.getByRole("button", { name: "Googleでログイン" }));
+    expect(await screen.findByText("リクエストが多すぎます")).toBeInTheDocument();
   });
   it("logs out and lets the user switch stores", async () => {
     const two: Me = { ...ME, memberships: [...ME.memberships, { subdomain: "kyoto", name: "京都店", role: "staff", staff_id: 11, billing_required: false, billing_managed: false }] };
@@ -243,76 +243,24 @@ function fireDate(input: HTMLElement, value: string) {
   input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-describe("calendar and time off", () => {
-  it("clips blocks to the displayed day", () => {
-    // 前日15時〜当日17時の休みは、当日は表示開始（9時）から17時まで
-    expect(minutesOnDay("2026-11-10T15:00:00+09:00", "2026-11-11")).toBe(0);
-    expect(minutesOnDay("2026-11-11T17:00:00+09:00", "2026-11-11")).toBe(8 * 60);
-    // 当日0時〜翌日0時は、表示範囲（9〜21時）いっぱい
-    expect(minutesOnDay("2026-11-12T00:00:00+09:00", "2026-11-11")).toBe(12 * 60);
-    expect(minutesOnDay("2026-11-11T10:30:00+09:00", "2026-11-11")).toBe(90);
-  });
-
-  it("shows the day with staff columns, breaks and time off", async () => {
-    const calls = api((url) =>
-      url.includes("/calendar?")
-        ? {
-            body: {
-              date: "2026-11-11",
-              staff: [{ id: 10, display_name: "Aさん" }, { id: 11, display_name: "Bさん" }],
-              bookings: [booking(), booking({ id: 8, staff: 11, status: "hold" })],
-              breaks: [{ staff: null, starts_at: "2026-11-11T13:00:00+09:00", ends_at: "2026-11-11T14:00:00+09:00" }],
-              time_offs: [{ id: 1, staff: 11, staff_name: "Bさん", starts_at: "2026-11-11T15:00:00+09:00", ends_at: "2026-11-11T16:00:00+09:00", reason: "" }],
-            },
-          }
-        : undefined,
-    );
-    const user = userEvent.setup();
-    withAdmin(<CalendarPage today="2026-11-11" />);
-    expect(await screen.findByLabelText("山田 花子 確定")).toBeInTheDocument();
-    expect(screen.getByLabelText("山田 花子 仮押さえ")).toBeInTheDocument();
-    expect(screen.getAllByLabelText("休憩")).toHaveLength(2);
-    expect(screen.getByLabelText("予約不可")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "翌日" }));
-    await waitFor(() => expect(calls.some((c) => c.url.includes("date=2026-11-12"))).toBe(true));
-    await user.click(screen.getByRole("button", { name: "前日" }));
-    await user.click(screen.getByRole("button", { name: "今日" }));
-    expect(screen.getByRole("heading", { name: "11月11日（水）" })).toBeInTheDocument();
-  });
-
-  it("adds time off, shows affected bookings and deletes", async () => {
-    let deletes = 0;
-    let list = [{ id: 1, staff: 10, staff_name: "Aさん", starts_at: "2026-11-11T15:00:00+09:00", ends_at: "2026-11-11T17:00:00+09:00", reason: "私用" }];
-    const calls = api((url, init) => {
-      if (url.includes("/time-offs?")) return { body: list };
-      if (url.endsWith("/time-offs") && init?.method === "POST") {
-        const body = JSON.parse(String(init.body));
-        if (body.starts_at >= body.ends_at) return { status: 400, body: { non_field_errors: ["x"] } };
-        return { status: 201, body: { ...list[0], id: 2, affected_bookings: [booking()] } };
-      }
-      if (url.includes("/time-offs/") && init?.method === "DELETE") {
-        deletes += 1;
-        if (deletes === 1) return { status: 403, body: { detail: "スタッフは自分の分だけ操作できます" } };
-        list = [];
-        return { status: 204, body: {} };
-      }
+describe("calendar connection", () => {
+  it("tells the owner which staff are hidden because their calendar is not connected", async () => {
+    mockFetch((url) => {
+      if (url.endsWith("/auth/me")) return { body: ME };
+      if (url.endsWith("/options")) return { body: { ...OPTIONS, calendar_issues: [{ staff_id: 11, name: "Bさん" }] } };
+      return { body: [] };
     });
-    const user = userEvent.setup();
-    withAdmin(<TimeOffPage today="2026-11-11" />);
-    expect(await screen.findByText(/（私用）/)).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("担当"), "all");
-    await user.selectOptions(screen.getByLabelText("終了"), "15:00");
-    await user.click(screen.getByRole("button", { name: "追加する" }));
-    expect(await screen.findByText("通信に失敗しました。時間をおいて、もう一度お試しください。")).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("終了"), "17:00");
-    await user.type(screen.getByLabelText("理由（任意・お客様には表示されません）"), "研修");
-    await user.click(screen.getByRole("button", { name: "追加する" }));
-    expect(await screen.findByText("影響を受ける予約：1件")).toBeInTheDocument();
-    const posted = JSON.parse(String(calls.filter((c) => c.init?.method === "POST" && c.url.endsWith("/time-offs")).at(-1)?.init?.body));
-    expect(posted).toMatchObject({ staff: null, starts_at: "2026-11-11T15:00:00+09:00", reason: "研修" });
-    await user.click(screen.getAllByRole("button", { name: /の登録を削除/ })[0]);
-    expect(await screen.findByText("スタッフは自分の分だけ操作できます")).toBeInTheDocument();
-    await user.click(screen.getAllByRole("button", { name: /の登録を削除/ })[0]);
-    expect(await screen.findByText("登録はありません。")).toBeInTheDocument();
+    withAdmin(<BookingListPage today="2026-11-11" />);
+    expect(await screen.findByText(/Googleカレンダーが接続されていないため、予約枠が出ていません：Bさん/)).toBeInTheDocument();
+  });
+  it("tells a staff member to reconnect their own calendar", async () => {
+    const staffMe: Me = { ...ME, memberships: [{ ...ME.memberships[0], role: "staff" }] };
+    mockFetch((url) => {
+      if (url.endsWith("/auth/me")) return { body: staffMe };
+      if (url.endsWith("/options")) return { body: { ...OPTIONS, role: "staff", calendar_issues: [{ staff_id: 10, name: "Aさん" }] } };
+      return { body: [] };
+    });
+    withAdmin(<BookingListPage today="2026-11-11" />);
+    expect(await screen.findByText(/あなたのGoogleカレンダーの接続が切れている/)).toBeInTheDocument();
   });
 });

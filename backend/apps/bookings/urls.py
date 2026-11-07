@@ -12,5 +12,4 @@ urlpatterns = [
     path("bookings/<str:token>", views.BookingByTokenView.as_view()),
     path("bookings/<str:token>/cancel", views.CancelView.as_view()),
     path("bookings/<str:token>/ics", views.IcsView.as_view()),
-    path("calendar/<str:token>.ics", views.StaffFeedView.as_view()),
 ]

@@ -25,38 +25,33 @@
 | GET | `bookings/{token}` | 予約内容と取消の締切 |
 | POST | `bookings/{token}/cancel` | 取消（締切まで） |
 | GET | `bookings/{token}/ics` | 確定した予約の予定ファイル |
-| GET | `calendar/{token}.ics` | 担当者ごとの読み取り専用カレンダー（CAL-06）。確定した予約の時間・メニュー・「予約あり」だけを載せる。お客様の名前は店舗の設定で載せられるが、連絡先は載せない（CAL-07） |
 
 ## 店舗利用者向けAPI
 
 | メソッド | パス | 内容 |
 |---|---|---|
 | GET | `/api/v1/auth/csrf` | CSRFトークンのCookieを発行 |
-| POST | `/api/v1/auth/login`・`logout` | ログイン・ログアウト（セッション） |
-| POST | `/api/v1/auth/login/code` | 二段階認証の2段目。パスワードが合うと `login` は `{two_factor_required: true}` を返し、ここで認証アプリの6桁（または回復コード）を受け付ける。5分以内・同じコードの使い回し不可 |
-| POST | `/api/v1/auth/2fa/setup`・`2fa/confirm` | 二段階認証の設定。QRコード（SVG）と鍵を返し、6桁で確認すると有効になり、回復コード8件を1回だけ返す。オーナーは必須（LOGIN-07）で、設定が済むまで店舗の管理APIは403 |
-| GET | `/api/v1/auth/me` | ログインユーザーと所属店舗（店舗ごとに `billing_required`：支払いが済んでいない） |
-| POST | `/api/v1/auth/signup` | 店舗のセルフ登録（ログイン不要、CSRF、回数制限）。店舗・オーナー・未払いの契約を作り、ログインした状態にする。この後、二段階認証 → お支払いの順に進む |
+| POST | `/api/v1/auth/google/start` | Googleの認証を始める前に、目的（`login`・`signup`＋店舗名とURL・`invite`＋トークン）を確かめてセッションに預ける（CSRF、回数制限）。返る `url` へブラウザを移すと、django-allauth がGoogleの認証を行う（ログインとカレンダーの権限を1回で許可。LOGIN-07〜10） |
+| GET | `/accounts/google/login/`・`login/callback/` | django-allauth のGoogle認証の入口と戻り先。Googleの「承認済みのリダイレクトURI」に `https://app.<ドメイン>/accounts/google/login/callback/` を登録する |
+| GET | `/api/v1/auth/google/done` | 認証から戻った直後の仕上げ。カレンダーの権限を確かめ、預けた目的（店舗の新規登録・招待の受け入れ・ログイン）を実行して、画面（`/`）か `/login?error=...` へ移す |
+| POST | `/api/v1/auth/logout` | ログアウト（セッション） |
+| GET | `/api/v1/auth/me` | ログインユーザーと所属店舗（店舗ごとに `billing_required`：支払いが済んでいない）。`calendar_connected`：本人のGoogleカレンダーが接続済みか |
 | GET | `.../billing?checkout_session=` | 契約の状態（オーナーのみ、未払いでも使える）。支払い画面から戻ったときは、Webhook を待たずに Stripe と合わせる |
 | POST | `.../billing/checkout`・`billing/portal` | Stripe の支払い画面（月額の登録）と、カードの変更・領収書・解約の画面のURL |
 | GET | `/api/v1/public/plan` | 料金の表記（LP用、ログイン不要） |
 | POST | `/api/v1/billing/stripe-webhook` | Stripe からの知らせ（署名を確認）。毎回 Stripe から今の契約を取り直して合わせるので、重複や順番の入れ替わりに強い |
-| GET | `/api/v1/admin/tenants/{店舗名}/options` | フォーム用のサービス・担当者と自分の権限 |
+| GET | `/api/v1/admin/tenants/{店舗名}/options` | フォーム用のサービス・担当者と自分の権限。Googleカレンダーが未接続・接続切れで予約枠に出ていない担当者（`calendar_issues`。スタッフには自分の分だけ） |
 | GET・POST | `.../bookings` | 予約一覧（期間・担当で絞り込み）、手入力の予約（確定で作成） |
 | GET | `.../bookings/{id}` | 予約の詳細と履歴 |
 | POST | `.../bookings/{id}/cancel`・`reschedule` | 店舗による取消、日時・担当の変更（オーナーのみ） |
-| GET | `.../availability`・`calendar` | 締切を適用しない空き枠、日表示のカレンダー |
-| GET・POST・DELETE | `.../calendar-feed` | 自分（担当者）のカレンダー配信URLの確認・発行（再発行で古いURLは無効）・停止 |
-| GET・POST・DELETE | `.../time-offs` | 休み・予約不可時間。登録時に影響を受ける予約を返す |
+| GET | `.../availability` | 締切を適用しない空き枠 |
 | GET・PUT・POST・PATCH・DELETE | `.../settings/*` | 設定（店舗・営業時間・休憩・臨時休業・設備・サービス・担当者・並び順・勤務・勤務の例外）。オーナーのみ。`?dry_run=1` は保存せず、新たに成り立たなくなる予約（`affected_bookings`）だけを返す。既存の予約は自動で取消さない |
-| POST | `/api/v1/auth/2fa/recovery-codes`・`2fa/reset` | 回復コードの再発行と、本人による二段階認証のやり直し（新しい端末）。どちらも今のコード（認証アプリか回復コード）で本人を確かめる。やり直したオーナーは、設定が済むまで管理APIが403 |
-| POST | `.../settings/members/{id}/reset-2fa` | 端末と回復コードの両方を失ったメンバーの二段階認証を、別のオーナーが外す（自分自身は不可）。本人確認は店舗で行う |
 | GET・POST・PATCH・DELETE | `.../settings/members`・`members/{id}`・`invitations`・`invitations/{id}` | メンバーの一覧・停止・再開と、招待の送信・取り消し（ADMIN-03）。招待はメールのリンクで7日間有効。同じ相手への古い招待は取り消す。自分自身は停止できない |
-| GET・POST | `/api/v1/auth/invitations/{token}`・`/accept` | 招待の確認と受け入れ（ログイン不要）。アカウントがなければパスワードを決めて作り、あればそのパスワードで参加して、そのままログインする |
+| GET | `/api/v1/auth/invitations/{token}` | 招待の内容の確認（ログイン不要）。参加は `google/start`（`invite`）→ 招待されたメールアドレスのGoogleアカウントでログイン → `google/done` |
 | GET・POST | `.../settings/history`・`history/undo` | 設定の変更履歴（変更前の設定、変更した人、経路＝画面・AI・取り消し）と、直前の変更の取り消し（SETUP-07）。取り消しも `?dry_run=1` で影響を受ける予約を確認できる。あとから作られた担当者・サービスは停止し、使われていない設備は削除する |
 | POST・GET | `.../settings/assistant`・`templates`・`templates/{key}` | AIで設定（SETUP）。店舗の様子や業種テンプレートから設定案を作り、設定APIへの手順（`steps`）として返す。ここでは何も保存しない。手順は画面で1つずつ確認し、上の設定APIで反映する。AIは決まった形の案しか作れず、契約・支払い・権限は扱えない。テンプレートはAIなしで使える |
 
-所属していない店舗は403。スタッフは自分が担当する予約と自分の休みだけを扱える（3章の権限表）。
+所属していない店舗は403。スタッフは自分が担当する予約だけを扱える（3章の権限表）。
 
 お客様へのメール（仮押さえ・確定・取消・変更）は Celery の worker が送る（`apps/bookings/tasks.py`）。送信に失敗したら間隔を空けて最大5回やり直す。依頼先の Redis に届かないときは、その場で送り、予約の処理は止めない。
 
@@ -80,13 +75,15 @@ python -m pytest --cov --cov-fail-under=95
 pip-audit -r requirements-dev.txt
 ```
 
-開発・E2E用のデモ店舗は `python manage.py seed_demo`（`--reset` で作り直し）で作れる。`DEMO_USER_PASSWORD` を設定すると、オーナー（`owner@fushimi.example`）とスタッフ（`staff@fushimi.example`）のログインも作る。 `DEMO_TOTP_SECRET`（Base32）を渡すと、オーナーの二段階認証をその鍵で設定済みにする（E2E用）。
+開発・E2E用のデモ店舗は `python manage.py seed_demo`（`--reset` で作り直し）で作れる。`--with-users` を付けると、オーナー（`owner@fushimi.example`）とスタッフ（`staff@fushimi.example`）を、Googleカレンダー接続済みの状態で作る（E2E用。`config.settings.e2e` はGoogleの代わりに疑似ログインと空のカレンダーを使う）。
 
-## 二段階認証の運用（オーナーが一人で、端末と回復コードの両方を失ったとき）
+## Googleログインとカレンダー連携
 
-1. 電話などで本人であることを確かめる（登録の氏名・電話番号・最近の予約内容など）。
-2. 管理サイト（Django admin）の「二段階認証」で、その利用者の行を削除する。鍵と回復コードは表示されない。
-3. 本人は次のログインがパスワードだけになり、オーナーなので二段階認証の設定画面に進む。
+- Google Cloud で OAuth クライアント（ウェブアプリケーション）を作り、`GOOGLE_CLIENT_ID`・`GOOGLE_CLIENT_SECRET` を設定する。承認済みのリダイレクトURIは `https://app.<ドメイン>/accounts/google/login/callback/`。
+- 求める権限は `openid`・`email`・`profile` と `https://www.googleapis.com/auth/calendar.events`（予定の閲覧・書き込み）だけ。
+- 更新用のトークンは django-allauth の `SocialToken` に保存する。取り消された・権限が外れたときはトークンを消し、本人とオーナーにメールで知らせ、そのスタッフの枠を非表示にする。再ログインで復旧する。
+- 空き判定は、勤務・休憩の設定から、本人のカレンダーの予定（ヨヤクルが書いた予定を除く）を引く。予定は1分キャッシュし、予約の確定直前（仮押さえの作成・日時の変更）だけ最新を取り直す。
+- 予約の確定・変更・取消は、Celeryのジョブで担当スタッフのカレンダーに反映する。予定のIDは予約ごとに固定（`yoyakuru<予約ID>`）で、何度実行しても1件になる。
 
 ## お支払い（Stripe）
 

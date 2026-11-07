@@ -1,15 +1,13 @@
 """店舗利用者向けの予約API（ADMIN-01〜02、3章の権限表）。
 
 `/api/v1/admin/tenants/{店舗名}/` 配下。ログインユーザーがその店舗に所属しているかをサーバーで判定する。
-スタッフは自分が担当する予約と自分の休みだけを扱える。日時・担当の変更はオーナーのみ（ASSIGN-04）。
+スタッフは自分が担当する予約だけを扱える。日時・担当の変更はオーナーのみ（ASSIGN-04）。
 """
 
 from __future__ import annotations
 
-import secrets
 from datetime import datetime, time, timedelta
 
-from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
@@ -18,7 +16,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.billing.models import usable as billing_usable
-from apps.stores.models import Membership, RecurringBreak, Role, Service, Staff, TimeOff
+from apps.core import google
+from apps.stores.models import Membership, Role, Service, Staff
 from apps.tenants.models import Tenant
 
 from .admin_serializers import (
@@ -27,9 +26,8 @@ from .admin_serializers import (
     BookingEventSerializer,
     DateRangeSerializer,
     RescheduleSerializer,
-    TimeOffSerializer,
 )
-from .availability import available_slots, overlaps, store_tz
+from .availability import available_slots, store_tz
 from .models import Booking, BookingStatus, Channel
 from .serializers import AvailabilityQuerySerializer, PublicServiceSerializer, PublicStaffSerializer
 from .services import BookingError, cancel_by_store, create_booking, reschedule_booking
@@ -74,6 +72,15 @@ class TenantAdminView(APIView):
         if not self.is_owner and (staff is None or staff.id != self.membership.staff_id):
             raise PermissionDenied("スタッフは自分の分だけ操作できます")
 
+    def calendar_issues(self) -> list[dict]:
+        """Googleカレンダーが未接続・接続切れで、予約枠に出ていない担当者。スタッフには自分の分だけ見せる。"""
+        staff = Staff.objects.for_tenant(self.tenant).filter(is_active=True)
+        if not self.is_owner:
+            staff = staff.filter(pk=self.membership.staff_id)
+        staff = list(staff)
+        ok = google.calendar_owners(staff)
+        return [{"staff_id": s.id, "name": s.display_name} for s in staff if s.id not in ok]
+
     def staff_or_404(self, staff_id) -> Staff:
         return get_object_or_404(Staff.objects.for_tenant(self.tenant), pk=staff_id, is_active=True)
 
@@ -95,6 +102,7 @@ class OptionsView(TenantAdminView):
                 "staff_id": self.membership.staff_id,
                 "services": PublicServiceSerializer(services, many=True).data,
                 "staff": PublicStaffSerializer(staff, many=True).data,
+                "calendar_issues": self.calendar_issues(),
             }
         )
 
@@ -192,115 +200,3 @@ class AdminAvailabilityView(TenantAdminView):
         )
         tz = store_tz(self.tenant)
         return Response({"slots": [{"starts_at": s.starts_at.astimezone(tz), "staff_ids": s.staff_ids} for s in slots]})
-
-
-class CalendarView(TenantAdminView):
-    """日表示のカレンダー（CAL-01）。スタッフは自分の列だけを見る。"""
-
-    def get(self, request, subdomain):
-        q = DateRangeSerializer(
-            data={"date_from": request.query_params.get("date"), "date_to": request.query_params.get("date")}
-        )
-        q.is_valid(raise_exception=True)
-        day = q.validated_data["date_from"]
-        start, end = self.day_bounds(day, day)
-        staff = Staff.objects.for_tenant(self.tenant).filter(is_active=True)
-        if not self.is_owner:
-            staff = staff.filter(pk=self.membership.staff_id)
-        tz = store_tz(self.tenant)
-        breaks = [
-            {
-                "staff": b.staff_id,
-                "starts_at": datetime.combine(day, b.starts_at, tz),
-                "ends_at": datetime.combine(day, b.ends_at, tz),
-            }
-            for b in RecurringBreak.objects.for_tenant(self.tenant)
-            if b.weekday in (None, day.weekday())
-        ]
-        time_offs = TimeOff.objects.for_tenant(self.tenant).filter(starts_at__lt=end, ends_at__gt=start)
-        if not self.is_owner:
-            # スタッフには、ほかの人の休み（理由を含む）を見せない。店舗全体の予約不可は見せる
-            time_offs = time_offs.filter(Q(staff__isnull=True) | Q(staff_id=self.membership.staff_id))
-        bookings = self.bookings().filter(
-            starts_at__lt=end, ends_at__gt=start, status__in=[BookingStatus.CONFIRMED, BookingStatus.HOLD]
-        )
-        return Response(
-            {
-                "date": day,
-                "staff": [{"id": s.id, "display_name": s.display_name} for s in staff],
-                "bookings": AdminBookingSerializer(bookings.order_by("starts_at"), many=True).data,
-                "breaks": breaks,
-                "time_offs": TimeOffSerializer(time_offs, many=True).data,
-            }
-        )
-
-
-class TimeOffListView(TenantAdminView):
-    """休み・予約不可時間（BREAK-02、27）。スタッフは自分の分だけ。"""
-
-    def get(self, request, subdomain):
-        qs = TimeOff.objects.for_tenant(self.tenant).select_related("staff").order_by("starts_at")
-        if not self.is_owner:
-            qs = qs.filter(staff_id=self.membership.staff_id)
-        start = request.query_params.get("from")
-        if start:
-            qs = qs.filter(ends_at__gte=start)
-        return Response(TimeOffSerializer(qs[:200], many=True).data)
-
-    def post(self, request, subdomain):
-        data = TimeOffSerializer(data=request.data)
-        data.is_valid(raise_exception=True)
-        staff_id = data.validated_data.get("staff").id if data.validated_data.get("staff") else None
-        staff = self.staff_or_404(staff_id) if staff_id else None
-        self.own_staff_or_403(staff)
-        time_off = data.save(tenant=self.tenant, staff=staff)
-        affected = [
-            b
-            for b in Booking.objects.blocking().filter(tenant=self.tenant).select_related("service", "staff")
-            if (staff is None or b.staff_id == staff.id)
-            and overlaps(b.occupied_from, b.occupied_until, time_off.starts_at, time_off.ends_at)
-        ]
-        body = TimeOffSerializer(time_off).data
-        # 既存の予約は自動で取消さない（TIME-07）。影響を受ける予約を返して確認してもらう
-        body["affected_bookings"] = AdminBookingSerializer(affected, many=True).data
-        return Response(body, status=status.HTTP_201_CREATED)
-
-
-class TimeOffDetailView(TenantAdminView):
-    def delete(self, request, subdomain, pk):
-        time_off = get_object_or_404(TimeOff.objects.for_tenant(self.tenant), pk=pk)
-        self.own_staff_or_403(time_off.staff)
-        time_off.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-class CalendarFeedView(TenantAdminView):
-    """自分（ログインしている担当者）のカレンダー配信URLの確認・発行・停止（CAL-06）。"""
-
-    def _staff(self) -> Staff:
-        if not self.membership.staff_id:
-            raise PermissionDenied("担当者として登録されていないため、カレンダー配信はありません")
-        return self.membership.staff
-
-    def _body(self, staff: Staff) -> dict:
-        token = staff.calendar_token
-        return {
-            "path": f"/api/v1/public/calendar/{token}.ics" if token else None,
-            "shows_customer_name": self.tenant.calendar_shows_customer_name,
-        }
-
-    def get(self, request, subdomain):
-        return Response(self._body(self._staff()))
-
-    def post(self, request, subdomain):
-        """発行・再発行。再発行すると古いURLは使えなくなる。"""
-        staff = self._staff()
-        staff.calendar_token = secrets.token_urlsafe(32)
-        staff.save(update_fields=["calendar_token"])
-        return Response(self._body(staff))
-
-    def delete(self, request, subdomain):
-        staff = self._staff()
-        staff.calendar_token = None
-        staff.save(update_fields=["calendar_token"])
-        return Response(self._body(staff))

@@ -1,5 +1,5 @@
 import { request } from "./api";
-import type { AdminBooking, Billing, CalendarDay, Me, Options, Role, TimeOff } from "./adminTypes";
+import type { AdminBooking, Billing, Me, Options, Role } from "./adminTypes";
 
 const AUTH = "/api/v1/auth";
 
@@ -30,7 +30,7 @@ export interface Member {
   staff: number | null;
   staff_name: string;
   is_active: boolean;
-  two_factor_enabled: boolean;
+  calendar_connected: boolean;
 }
 
 export interface Invitation {
@@ -43,11 +43,6 @@ export interface Invitation {
   expires_at: string;
 }
 
-export interface CalendarFeed {
-  path: string | null;
-  shows_customer_name: boolean;
-}
-
 export interface Applied<T> {
   applied: boolean;
   result: T;
@@ -56,19 +51,13 @@ export interface Applied<T> {
 
 export const adminApi = {
   me: () => request<Me>(`${AUTH}/me`),
-  signup: (body: { store_name: string; subdomain: string; name: string; email: string; password: string }) =>
-    mutate<Me>(`${AUTH}/signup`, "POST", body),
+  /** Googleの認証を始める前に、目的（ログイン・新規登録・招待の受け入れ）を預ける。返ったURLへ移ると、Googleの認証が始まる。 */
+  googleStart: (body: { kind: "login" } | { kind: "signup"; store_name: string; subdomain: string } | { kind: "invite"; token: string }) =>
+    mutate<{ url: string }>(`${AUTH}/google/start`, "POST", body),
   billing: (sub: string, checkoutSession?: string | null) =>
     request<Billing>(`${base(sub)}/billing?${qs({ checkout_session: checkoutSession })}`),
   checkout: (sub: string) => mutate<{ url: string }>(`${base(sub)}/billing/checkout`, "POST"),
   billingPortal: (sub: string) => mutate<{ url: string }>(`${base(sub)}/billing/portal`, "POST"),
-  /** パスワードが合っていて二段階認証が有効なら { two_factor_required: true } が返る。 */
-  login: (email: string, password: string) => mutate<Me | { two_factor_required: true }>(`${AUTH}/login`, "POST", { email, password }),
-  loginCode: (code: string) => mutate<Me>(`${AUTH}/login/code`, "POST", { code }),
-  setupTwoFactor: () => mutate<{ secret: string; uri: string; qr_svg: string }>(`${AUTH}/2fa/setup`, "POST"),
-  regenerateRecoveryCodes: (code: string) => mutate<{ recovery_codes: string[] }>(`${AUTH}/2fa/recovery-codes`, "POST", { code }),
-  resetTwoFactor: (code: string) => mutate<Me>(`${AUTH}/2fa/reset`, "POST", { code }),
-  confirmTwoFactor: (code: string) => mutate<Me & { recovery_codes: string[] }>(`${AUTH}/2fa/confirm`, "POST", { code }),
   logout: () => mutate(`${AUTH}/logout`, "POST"),
   options: (sub: string) => request<Options>(`${base(sub)}/options`),
   bookings: (sub: string, dateFrom: string, dateTo: string, staff?: number | null) =>
@@ -80,25 +69,14 @@ export const adminApi = {
     mutate<AdminBooking>(`${base(sub)}/bookings/${id}/reschedule`, "POST", { starts_at, staff }),
   availability: (sub: string, p: { service: number; date: string; customer_type: string; staff?: number | null; exclude_booking?: number }) =>
     request<{ slots: { starts_at: string; staff_ids: number[] }[] }>(`${base(sub)}/availability?${qs(p)}`),
-  calendar: (sub: string, date: string) => request<CalendarDay>(`${base(sub)}/calendar?${qs({ date })}`),
-  timeOffs: (sub: string, from?: string) => request<TimeOff[]>(`${base(sub)}/time-offs?${qs({ from })}`),
-  createTimeOff: (sub: string, body: Record<string, unknown>) => mutate<TimeOff>(`${base(sub)}/time-offs`, "POST", body),
-  deleteTimeOff: (sub: string, id: number) => mutate(`${base(sub)}/time-offs/${id}`, "DELETE"),
-  /** 自分のカレンダー配信URL（CAL-06）。発行・再発行・停止。 */
-  calendarFeed: (sub: string) => request<CalendarFeed>(`${base(sub)}/calendar-feed`),
-  issueCalendarFeed: (sub: string) => mutate<CalendarFeed>(`${base(sub)}/calendar-feed`, "POST"),
-  stopCalendarFeed: (sub: string) => mutate<CalendarFeed>(`${base(sub)}/calendar-feed`, "DELETE"),
   /** メンバーの招待・停止（オーナーのみ、ADMIN-03）。 */
   invite: (sub: string, body: { email: string; role: string; staff: number | null; new_staff_name: string }) =>
     mutate<Invitation>(`${base(sub)}/settings/invitations`, "POST", body),
   revokeInvitation: (sub: string, id: number) => mutate<Invitation>(`${base(sub)}/settings/invitations/${id}`, "DELETE"),
-  resetMemberTwoFactor: (sub: string, id: number) => mutate<Member>(`${base(sub)}/settings/members/${id}/reset-2fa`, "POST"),
   setMemberActive: (sub: string, id: number, is_active: boolean) => mutate<Member>(`${base(sub)}/settings/members/${id}`, "PATCH", { is_active }),
-  /** 招待されたひとが、リンクから参加する（ログイン不要）。 */
+  /** 招待の内容の確認（ログイン不要）。参加はGoogleでログインして行う。 */
   invitation: (token: string) =>
-    request<{ tenant: string; email: string; role: Role; staff_name: string; has_account: boolean }>(`${AUTH}/invitations/${encodeURIComponent(token)}`),
-  acceptInvitation: (token: string, password: string, name: string, code = "") =>
-    mutate<Me>(`${AUTH}/invitations/${encodeURIComponent(token)}/accept`, "POST", { password, name, ...(code ? { code } : {}) }),
+    request<{ tenant: string; email: string; role: Role; staff_name: string }>(`${AUTH}/invitations/${encodeURIComponent(token)}`),
   /** 設定の読み込み（オーナーのみ）。 */
   setting: <T>(sub: string, path: string) => request<T>(`${base(sub)}/settings/${path}`),
   /** 店舗の様子から設定案を作る（保存はしない）。 */

@@ -26,6 +26,10 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.admin",
     "rest_framework",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
     "apps.core",
     "apps.tenants",
     "apps.stores",
@@ -39,6 +43,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -114,12 +119,35 @@ EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "25"))
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", f"noreply@{TENANT_BASE_DOMAIN}")
 
-AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
-    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
-    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+# 店舗の利用者（オーナー・スタッフ）はGoogleでログインする。パスワードは持たない（LOGIN-07〜09）。
+# Django の管理サイト（運営者用）だけは、従来どおりユーザー名とパスワードを使う
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
 ]
+SOCIALACCOUNT_ONLY = True
+ACCOUNT_EMAIL_VERIFICATION = "none"  # メールアドレスの確認はGoogleに任せる
+SOCIALACCOUNT_ADAPTER = "apps.core.accounts.SocialAccountAdapter"
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_STORE_TOKENS = True  # カレンダーの更新用トークンを保存する
+SOCIALACCOUNT_LOGIN_ON_GET = True  # 開始前に /api/v1/auth/google/start でCSRFを確かめている
+LOGIN_REDIRECT_URL = "/api/v1/auth/google/done"
+# Googleの認証へ移るパス。E2Eでは、Googleの代わりに疑似ログインへ移す
+GOOGLE_LOGIN_PATH = "/accounts/google/login/?process=login"
+# True なら、Googleを呼ばず空のカレンダーとして扱う（E2E専用。本番では使わない）
+GOOGLE_FAKE = False
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "APP": {"client_id": GOOGLE_CLIENT_ID, "secret": GOOGLE_CLIENT_SECRET, "key": ""},
+        # ログインとカレンダーの許可を1回で済ませる。権限は予定の閲覧・書き込みだけ（最小限）
+        "SCOPE": ["openid", "email", "profile", "https://www.googleapis.com/auth/calendar.events"],
+        # 更新用のトークンを毎回受け取る（最初の1回しか返らないため）
+        "AUTH_PARAMS": {"access_type": "offline", "prompt": "consent"},
+        "OAUTH_PKCE_ENABLED": True,
+    }
+}
 
 LANGUAGE_CODE = "ja"
 TIME_ZONE = "Asia/Tokyo"

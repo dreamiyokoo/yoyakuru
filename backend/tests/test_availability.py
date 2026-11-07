@@ -4,7 +4,7 @@ import pytest
 
 from apps.bookings.availability import available_slots, choose_staff, intersect, plan_for, subtract
 from apps.bookings.models import Booking, BookingStatus
-from apps.stores.models import DateOverride, RecurringBreak, Service, ShiftException, TimeOff
+from apps.stores.models import DateOverride, RecurringBreak, Service, ShiftException
 from apps.tenants.models import Tenant
 
 from .conftest import DAY, NOW, at
@@ -77,14 +77,18 @@ def test_closed_day_and_overrides(service):
     assert starts(available_slots(store, service, DAY, now=NOW)) == ["15:00", "15:30", "16:00"]
 
 
-def test_staff_exception_and_time_off(service, staff):
+def test_staff_exception_and_google_busy(service, staff, gcal):
+    from django.core.cache import cache
+
     a, b, c = staff
     ShiftException.objects.create(tenant=service.tenant, staff=a, date=DAY, is_off=True)
-    TimeOff.objects.create(tenant=service.tenant, staff=b, starts_at=at(10), ends_at=at(12))
+    gcal.add_busy(gcal.owner_of(b), at(10), at(12))  # Googleカレンダーの予定
     slots = {s.starts_at: s.staff_ids for s in available_slots(service.tenant, service, DAY, now=NOW)}
     assert slots[at(10)] == (c.id,)
     assert slots[at(15)] == (b.id, c.id)
-    TimeOff.objects.create(tenant=service.tenant, starts_at=at(15), ends_at=at(16))  # 店舗全体
+    cache.clear()
+    gcal.add_busy(gcal.owner_of(c), at(15), at(16))
+    gcal.add_busy(gcal.owner_of(b), at(15), at(16))
     assert at(15) not in {s.starts_at for s in available_slots(service.tenant, service, DAY, now=NOW)}
 
 

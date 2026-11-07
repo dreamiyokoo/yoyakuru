@@ -20,6 +20,7 @@ from apps.bookings.admin_api import TenantAdminView
 from apps.bookings.admin_serializers import AdminBookingSerializer
 from apps.bookings.availability import available_slots, peak_resource_usage, store_tz
 from apps.bookings.models import Booking
+from apps.core import google
 from apps.tenants.models import Tenant
 
 from .models import (
@@ -59,6 +60,7 @@ def affected_bookings(tenant: Tenant, now) -> list[Booking]:
             b.party_size,
             exclude_booking_id=b.id,
             enforce_cutoff=False,
+            use_calendar=False,
         )
         fits = any(s.starts_at == b.starts_at for s in slots)
         # 空き判定はグループへの参加なら設備を数えないため、設備の数は既存の予約全体で直接確かめる
@@ -129,7 +131,6 @@ class StoreSerializer(serializers.ModelSerializer):
             "phone",
             "address",
             "guide",
-            "calendar_shows_customer_name",
             "slot_interval_minutes",
             "booking_window_days",
             "same_day_cutoff_minutes",
@@ -422,10 +423,16 @@ class ServiceDetailView(ServiceWriteMixin, SettingsView):
 
 
 class StaffSettingsSerializer(serializers.ModelSerializer):
+    calendar_connected = serializers.SerializerMethodField()
+
     class Meta:
         model = Staff
-        fields = ["id", "display_name", "title", "priority", "is_active"]
-        read_only_fields = ["id"]
+        fields = ["id", "display_name", "title", "priority", "is_active", "calendar_connected"]
+        read_only_fields = ["id", "calendar_connected"]
+
+    def get_calendar_connected(self, obj) -> bool:
+        """本人のGoogleカレンダーが接続済みか。未接続の担当者は、予約枠に出ない。"""
+        return obj.id in google.calendar_owners([obj])
 
 
 class StaffListView(SettingsView):
@@ -716,31 +723,3 @@ class InvitationDetailView(SettingsView):
             i.revoked_at = timezone.now()
             i.save(update_fields=["revoked_at"])
         return Response(invitation_payload(i))
-
-
-class MemberTwoFactorResetView(SettingsView):
-    """端末と回復コードの両方を失ったメンバーの二段階認証を、別のオーナーが外す。
-
-    対象は、この店舗で有効なメンバーで、ほかの店舗に所属していない人だけ。自分自身は外せない。
-
-    外された人は、次のログインがパスワードだけになる。
-    """
-
-    def post(self, request, subdomain, pk):
-        from apps.core import two_factor
-
-        from .invitations import member_payload
-
-        m = get_object_or_404(
-            Membership.objects.for_tenant(self.tenant).filter(is_active=True).select_related("user", "staff"), pk=pk
-        )
-        if m.user_id == request.user.id:
-            raise serializers.ValidationError("自分の二段階認証は、アカウントの画面で設定し直してください")
-        # 二段階認証はアカウント全体のもの。ほかの店舗にも所属している人は、その店舗の保護も外れるので、
-        # この店舗のオーナーだけでは外せない（運営が本人確認をして行う）
-        if Membership.objects.filter(user=m.user, is_active=True).exclude(tenant=self.tenant).exists():
-            raise serializers.ValidationError(
-                "ほかの店舗にも所属しているため、ここではリセットできません。運営にご連絡ください"
-            )
-        two_factor.reset(m.user)
-        return Response(member_payload(m))

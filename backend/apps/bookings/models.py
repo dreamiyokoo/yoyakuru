@@ -69,6 +69,11 @@ class Booking(TenantOwnedModel):
     customer_phone = models.CharField(max_length=20, blank=True)
     note = models.CharField(max_length=500, blank=True)
 
+    # この予約の予定が入っているGoogleカレンダーの持ち主（担当が替わったとき、前の予定を消すため）
+    gcal_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
     token = models.CharField(max_length=64, unique=True, default=new_token, editable=False)
     idempotency_key = models.CharField(max_length=64, null=True, blank=True)  # noqa: DJ001  空の重複を許すためNULL
 

@@ -140,9 +140,11 @@ def test_ics_download(client, service):
 
 
 def test_seed_demo(db):
+    from django.contrib.auth import get_user_model
     from django.core.management import call_command
 
     from apps.bookings.services import create_booking
+    from apps.core import google
     from apps.stores.models import Service
     from apps.tenants.models import Tenant
 
@@ -151,8 +153,12 @@ def test_seed_demo(db):
     store = Tenant.objects.get(subdomain="fushimi")
     service = Service.objects.for_tenant(store).first()
     create_booking(store, service=service, starts_at=at(10), customer_name="x", now=NOW)
-    call_command("seed_demo", "--reset")
+    call_command("seed_demo", "--reset", "--with-users")
+    call_command("seed_demo", "--reset", "--with-users")  # 2回目もユーザーを作り直せる
     assert Service.objects.for_tenant(Tenant.objects.get(subdomain="fushimi")).count() == 3
+    owner = get_user_model().objects.get(username="owner@fushimi.example")
+    assert not owner.has_usable_password() and owner.memberships.get().role == "owner"
+    assert google.connected(owner)  # Googleカレンダーは接続済みの体にする（E2E用）
 
 
 def test_seed_dev(db, monkeypatch):
@@ -164,3 +170,8 @@ def test_seed_dev(db, monkeypatch):
     call_command("seed_dev")
     call_command("seed_dev")
     assert get_user_model().objects.filter(username="admin", is_superuser=True).exists()
+
+
+def test_ics_error_is_rendered_for_calendar_apps(db):
+    r = APIClient().get("/api/v1/public/bookings/nope/ics", HTTP_ACCEPT="text/calendar")
+    assert r.status_code == 404

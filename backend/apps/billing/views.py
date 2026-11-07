@@ -1,6 +1,6 @@
-"""店舗のセルフ登録と、月額契約の支払い（BILL-01、BILL-04）。
+"""月額契約の支払い（BILL-01、BILL-04）。
 
-登録 → 二段階認証の設定 → Stripe で支払い → 利用開始、の順に進む。
+Googleで店舗を登録 → Stripe で支払い → 利用開始、の順に進む（登録は apps.core.accounts）。
 支払いが済むまでは、管理画面（お支払い以外）と公開予約ページを使えない。
 """
 
@@ -9,13 +9,9 @@ from __future__ import annotations
 import logging
 
 import stripe
-from django.contrib.auth import get_user_model, login
-from django.contrib.auth.password_validation import validate_password
-from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt, csrf_protect
-from rest_framework import serializers
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -23,71 +19,11 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.bookings.admin_api import TenantAdminView
-from apps.core.auth_api import me_payload
-from apps.stores.models import Membership, Role
-from apps.tenants.models import Tenant, validate_subdomain
 
 from . import stripe_api
 from .models import Subscription
 
 log = logging.getLogger(__name__)
-
-
-class SignupSerializer(serializers.Serializer):
-    store_name = serializers.CharField(max_length=100)
-    subdomain = serializers.CharField(max_length=32)
-    name = serializers.CharField(max_length=150)
-    email = serializers.EmailField()
-    password = serializers.CharField(max_length=200)
-
-    def validate_subdomain(self, value: str) -> str:
-        value = value.strip().lower()
-        try:
-            validate_subdomain(value)
-        except DjangoValidationError as e:
-            raise serializers.ValidationError(e.messages[0]) from e
-        if Tenant.objects.filter(subdomain=value).exists():
-            raise serializers.ValidationError("このURLは既に使われています")
-        return value
-
-    def validate_email(self, value: str) -> str:
-        if get_user_model().objects.filter(email__iexact=value).exists():
-            raise serializers.ValidationError("このメールアドレスは登録済みです。ログインしてください")
-        return value
-
-    def validate(self, attrs):
-        try:
-            validate_password(attrs["password"], get_user_model()(username=attrs["email"], email=attrs["email"]))
-        except DjangoValidationError as e:
-            raise serializers.ValidationError({"password": e.messages}) from e
-        return attrs
-
-
-class SignupView(APIView):
-    """店舗とオーナーのアカウントを作り、ログインした状態にする。支払いはこの後。"""
-
-    permission_classes = [AllowAny]
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = "signup"
-
-    @method_decorator(csrf_protect)
-    def post(self, request):
-        data = SignupSerializer(data=request.data)
-        data.is_valid(raise_exception=True)
-        v = data.validated_data
-        try:
-            with transaction.atomic():
-                tenant = Tenant.objects.create(name=v["store_name"].strip(), subdomain=v["subdomain"])
-                Subscription.objects.create(tenant=tenant)
-                user = get_user_model().objects.create_user(
-                    username=v["email"], email=v["email"], password=v["password"], first_name=v["name"].strip()
-                )
-                Membership.objects.create(tenant=tenant, user=user, role=Role.OWNER)
-        except IntegrityError:
-            # 同時に同じURL・メールアドレスで登録された
-            return Response({"code": "conflict", "message": "このURLかメールアドレスは既に使われています"}, status=409)
-        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-        return Response(me_payload(user), status=201)
 
 
 def billing_payload(sub: Subscription | None) -> dict:

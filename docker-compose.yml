@@ -16,6 +16,9 @@ x-backend-env: &backend-env
   STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
   STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
   STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
+  # Googleログイン＋カレンダー連携。リダイレクトURIは https://app.<ドメイン>/accounts/google/login/callback/
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   # 料金の表記（LP・支払いの案内）。空なら Stripe の価格から作る
   PLAN_PRICE_LABEL: ${PLAN_PRICE_LABEL:-}
   REDIS_URL: redis://redis:6379/0

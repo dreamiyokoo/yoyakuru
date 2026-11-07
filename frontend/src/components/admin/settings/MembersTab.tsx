@@ -7,7 +7,6 @@ import { formatDateTime } from "@/lib/format";
 import { Button } from "../../ui/Button";
 import { Field } from "../../ui/Field";
 import { Notice } from "../../ui/Notice";
-import { useAdmin } from "../AdminContext";
 import { useLoad } from "../useLoad";
 import type { StaffSetting } from "./StaffTab";
 import { inputClass } from "./useSettingChange";
@@ -17,7 +16,6 @@ const STATE: Record<Invitation["state"], string> = { open: "招待中", accepted
 
 /** 37 メンバー（ADMIN-03）。招待・停止はオーナーのみ。スタッフは担当者と結びつけ、自分の予約だけを扱う。 */
 export function MembersTab({ sub, staff, onChanged }: { sub: string; staff: StaffSetting[]; onChanged?: () => void }) {
-  const { me } = useAdmin();
   const list = useLoad(`${sub}|members`, () => adminApi.setting<{ members: Member[]; invitations: Invitation[] }>(sub, "members"));
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -60,6 +58,9 @@ export function MembersTab({ sub, staff, onChanged }: { sub: string; staff: Staf
                 {m.email}
                 {m.staff_name ? `・担当者：${m.staff_name}` : ""}
               </span>
+              {m.is_active && m.staff && !m.calendar_connected ? (
+                <span className="block text-xs font-bold text-danger">Googleカレンダーの接続が切れています（予約枠は非表示）</span>
+              ) : null}
             </span>
             <span className="flex shrink-0 flex-col items-end">
               <button
@@ -70,20 +71,6 @@ export function MembersTab({ sub, staff, onChanged }: { sub: string; staff: Staf
               >
                 {m.is_active ? "停止" : "再開"}
               </button>
-              {m.is_active && m.two_factor_enabled && m.email !== me?.email ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  className="min-h-11 px-2 text-xs text-danger"
-                  onClick={() => {
-                    // 端末と回復コードの両方を失ったメンバーのため。本人確認ができたときだけ行う
-                    if (window.confirm(`${m.email} の二段階認証をリセットします。本人に確認しましたか？`))
-                      void run(() => adminApi.resetMemberTwoFactor(sub, m.id), `${m.email} の二段階認証をリセットしました。次のログインはパスワードだけになります。`);
-                  }}
-                >
-                  二段階認証をリセット
-                </button>
-              ) : null}
             </span>
           </li>
         ))}
@@ -155,7 +142,7 @@ function InviteForm({ staff, busy, onInvite }: { staff: StaffSetting[]; busy: bo
       >
         招待メールを送る
       </Button>
-      <p className="text-xs text-sub">招待のリンクは7日間有効です。</p>
+      <p className="text-xs text-sub">招待のリンクは7日間有効です。招待されたひとは、このメールアドレスのGoogleアカウントでログインして参加します。</p>
     </section>
   );
 }

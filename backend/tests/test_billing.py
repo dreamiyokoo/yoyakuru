@@ -1,4 +1,4 @@
-"""店舗のセルフ登録と、Stripe の月額契約（BILL-01、BILL-04）。Stripe は呼ばず、置き換えて確かめる。"""
+"""店舗のセルフ登録（Googleログイン）と、Stripe の月額契約（BILL-01、BILL-04）。Stripe は呼ばず、置き換えて確かめる。"""
 
 from types import SimpleNamespace
 from unittest import mock
@@ -12,15 +12,9 @@ from apps.billing.models import Subscription
 from apps.stores.models import Membership, Role
 from apps.tenants.models import Tenant
 
-from .conftest import client_for, enable_two_factor, user
+from .conftest import client_for, user
 
-SIGNUP = {
-    "store_name": "こもれび整体院",
-    "subdomain": "Komorebi",
-    "name": "木漏 日子",
-    "email": "komorebi@example.com",
-    "password": "long-enough-pass-1",
-}
+SIGNUP = {"kind": "signup", "store_name": "こもれび整体院", "subdomain": "Komorebi"}
 
 
 @pytest.fixture
@@ -50,72 +44,67 @@ def stripe_sub(status="active", tenant_id="1", sub_id="sub_1", period_end=1_800_
 
 
 def signed_up(db):
+    """Googleの認証を済ませた体で、登録の仕上げ（done）まで進める。"""
     c = APIClient(enforce_csrf_checks=True)
     c.get("/api/v1/auth/csrf")
-    r = c.post("/api/v1/auth/signup", SIGNUP, format="json", HTTP_X_CSRFTOKEN=c.cookies["csrftoken"].value)
-    return c, r
+    r = c.post("/api/v1/auth/google/start", SIGNUP, format="json", HTTP_X_CSRFTOKEN=c.cookies["csrftoken"].value)
+    assert r.status_code == 200
+    u = user("komorebi@example.com")
+    u.first_name = "木漏 日子"
+    u.save()
+    c.force_login(u)
+    return c, c.get("/api/v1/auth/google/done")
 
 
 class TestSignup:
-    def test_creates_store_owner_and_pending_subscription_then_logs_in(self, db):
+    def test_creates_store_owner_staff_and_pending_subscription(self, db):
         c, r = signed_up(db)
-        assert r.status_code == 201
-        me = r.json()
-        assert me["email"] == "komorebi@example.com" and me["name"] == "木漏 日子"
-        assert me["two_factor_enabled"] is False
+        assert r.status_code == 302 and r["Location"] == "/"
+        tenant = Tenant.objects.get(subdomain="komorebi")
+        assert tenant.name == "こもれび整体院" and tenant.subscription.status == "pending"
+        m = Membership.objects.get(tenant=tenant)
+        assert m.role == Role.OWNER and m.staff.display_name == "木漏 日子"
+        me = c.get("/api/v1/auth/me").json()
         assert me["memberships"] == [
             {
                 "subdomain": "komorebi",
                 "name": "こもれび整体院",
                 "role": "owner",
-                "staff_id": None,
+                "staff_id": m.staff_id,
                 "billing_required": True,
                 "billing_managed": True,
             }
         ]
-        tenant = Tenant.objects.get(subdomain="komorebi")
-        assert tenant.subscription.status == "pending"
-        assert Membership.objects.get(tenant=tenant).role == Role.OWNER
-        assert c.get("/api/v1/auth/me").status_code == 200  # ログイン済み
 
-    def test_requires_csrf(self, db):
+    def test_start_requires_csrf(self, db):
         c = APIClient(enforce_csrf_checks=True)
-        assert c.post("/api/v1/auth/signup", SIGNUP, format="json").status_code == 403
-        assert not Tenant.objects.exists()
+        assert c.post("/api/v1/auth/google/start", SIGNUP, format="json").status_code == 403
 
-    @pytest.mark.parametrize(
-        ("change", "field"),
-        [
-            ({"subdomain": "app"}, "subdomain"),
-            ({"subdomain": "ab"}, "subdomain"),
-            ({"subdomain": "fushimi"}, "subdomain"),
-            ({"email": "OWNER@example.com"}, "email"),
-            ({"password": "password"}, "password"),
-            ({"password": "komorebi@example.com"}, "password"),
-        ],
-    )
-    def test_rejects_bad_or_taken_values(self, owner, change, field):
-        r = APIClient().post("/api/v1/auth/signup", {**SIGNUP, **change}, format="json")
-        assert r.status_code == 400 and field in r.json()
-        assert not Tenant.objects.filter(subdomain="komorebi").exists()
+    @pytest.mark.parametrize("change", [{"subdomain": "app"}, {"subdomain": "ab"}, {"subdomain": "fushimi"}])
+    def test_start_rejects_bad_or_taken_subdomain(self, owner, change):
+        r = APIClient().post("/api/v1/auth/google/start", {**SIGNUP, **change}, format="json")
+        assert r.status_code == 400 and "subdomain" in r.json()
 
-    def test_conflict_from_concurrent_signup_is_409(self, db):
-        with mock.patch(
-            "apps.billing.views.Membership.objects.create", side_effect=__import__("django").db.IntegrityError
-        ):
-            r = APIClient().post("/api/v1/auth/signup", SIGNUP, format="json")
-        assert r.status_code == 409
-        assert not Tenant.objects.exists()  # まとめて取り消される
+    def test_start_requires_store_name(self, db):
+        r = APIClient().post("/api/v1/auth/google/start", {"kind": "signup", "subdomain": "komorebi"}, format="json")
+        assert r.status_code == 400
+
+    def test_taken_during_authentication_is_refused(self, db):
+        c = APIClient()
+        c.post("/api/v1/auth/google/start", SIGNUP, format="json")
+        Tenant.objects.create(subdomain="komorebi", name="先に取られた")
+        c.force_login(user("komorebi@example.com"))
+        r = c.get("/api/v1/auth/google/done")
+        assert r["Location"] == "/login?error=taken"
+        assert c.get("/api/v1/auth/me").status_code == 403  # ログアウトされる
 
 
 @pytest.fixture
 def new_owner(db):
-    """セルフ登録して二段階認証まで済ませた、支払い前のオーナー。"""
+    """セルフ登録した、支払い前のオーナー。"""
     _, r = signed_up(db)
-    assert r.status_code == 201
-    u = Membership.objects.get(tenant__subdomain="komorebi").user
-    enable_two_factor(u)
-    return u
+    assert r.status_code == 302
+    return Membership.objects.get(tenant__subdomain="komorebi").user
 
 
 class TestGate:

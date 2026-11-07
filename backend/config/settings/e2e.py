@@ -23,6 +23,9 @@ REST_FRAMEWORK = {
     },
 }
 CHAT_PROVIDER = "fake"
+# Googleの認証とカレンダーは使わず、疑似ログイン（apps.core.e2e）と空のカレンダーで動かす
+GOOGLE_FAKE = True
+GOOGLE_LOGIN_PATH = "/api/v1/auth/e2e/google"
 ADMIN_APP_URL = "http://app.localhost:3000"
 # E2EではRedisとworkerを立てないので、メールの送信はその場で行う（本番はworkerが送る）
 CELERY_TASK_ALWAYS_EAGER = True

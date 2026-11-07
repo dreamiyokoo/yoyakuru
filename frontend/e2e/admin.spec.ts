@@ -1,35 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
-import { totp } from "./totp";
 import fs from "node:fs";
 import path from "node:path";
 
 const APP = "http://app.localhost:3000";
-const PASSWORD = "e2e-demo-pass";
 
-const TOTP_SECRET = "JBSWY3DPEHPK3PXP"; // playwright.config.ts の DEMO_TOTP_SECRET と同じ
-
-let lastStep = 0;
-
-/** 前回と違う30秒の区切りの6桁を待って返す（同じコードは使い回せない）。 */
-async function freshCode(page: Page): Promise<string> {
-  let now = Date.now();
-  while (Math.floor(now / 30000) <= lastStep) {
-    await page.waitForTimeout(1000);
-    now = Date.now();
-  }
-  lastStep = Math.floor(now / 30000);
-  return totp(TOTP_SECRET, now);
-}
-
+/** Googleの認証は使わず、e2e の設定が用意する疑似ログイン（決めたメールアドレスで入る）を使う。 */
 async function login(page: Page, email: string) {
+  await page.context().addCookies([{ name: "e2e_google_email", value: email, url: APP }]);
   await page.goto(`${APP}/login`);
-  await page.getByLabel("メールアドレス").fill(email);
-  await page.getByLabel("パスワード").fill(PASSWORD);
-  await page.getByRole("button", { name: "ログイン" }).click();
-  if (email.startsWith("owner")) {
-    await page.getByLabel("確認コード").fill(await freshCode(page));
-    await page.getByRole("button", { name: "確認する" }).click();
-  }
+  await page.getByRole("button", { name: "Googleでログイン" }).click();
   await expect(page.getByRole("heading", { name: "予約", exact: true })).toBeVisible();
 }
 
@@ -54,23 +33,19 @@ test("オーナーが電話の予約を登録し、取消できる", async ({ pa
   await expect(page.getByText(/予約を取消しました/)).toBeVisible();
 });
 
-test("スタッフは自分の列と自分の休みだけを扱える", async ({ page }) => {
+test("スタッフは自分の予約だけを扱え、カレンダー・休みの画面はない", async ({ page }) => {
   await login(page, "staff@fushimi.example");
-  await page.getByRole("link", { name: "カレンダー" }).click();
-  await expect(page.getByRole("region", { name: "Bさん" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Aさん" })).toHaveCount(0);
-  // 自分の予約を配信するカレンダーURLを発行し、取り込めることを確かめる
-  const feed = page.getByRole("region", { name: "カレンダーアプリに表示" });
-  await feed.getByRole("button", { name: /URLを(発行|再発行)/ }).first().click();
-  const url = await feed.getByLabel("カレンダーのURL").inputValue();
-  const ics = await page.request.get(url.replace("app.localhost", "localhost"));
-  expect(ics.headers()["content-type"]).toContain("text/calendar");
-  expect(await ics.text()).toContain("X-WR-CALNAME:");
-  await page.getByRole("link", { name: "休み" }).click();
-  await expect(page.getByLabel("担当").locator("option")).toHaveText(["Bさん（自分）"]);
-  await page.getByLabel("日付").fill(openDay());
-  await page.getByRole("button", { name: "追加する" }).click();
-  await expect(page.getByRole("button", { name: /の登録を削除/ })).toHaveCount(1);
+  await expect(page.getByRole("navigation", { name: "管理メニュー" }).getByRole("link")).toHaveText(["予約", "設定"]);
+  await page.getByRole("link", { name: "追加" }).click();
+  await expect(page.getByLabel("担当")).toContainText("Bさん");
+  await expect(page.getByLabel("担当").locator("option")).toHaveCount(1); // 自分の分だけ
+});
+
+test("登録のないGoogleアカウントではログインできない", async ({ page }) => {
+  await page.context().addCookies([{ name: "e2e_google_email", value: "stranger@example.com", url: APP }]);
+  await page.goto(`${APP}/login`);
+  await page.getByRole("button", { name: "Googleでログイン" }).click();
+  await expect(page.getByText(/このGoogleアカウントは登録されていません/)).toBeVisible();
 });
 
 test("店舗のサブドメインでは管理画面を開けない", async ({ page }) => {
@@ -79,7 +54,6 @@ test("店舗のサブドメインでは管理画面を開けない", async ({ pa
 });
 
 test("オーナーは設定を変更でき、スタッフは設定を変更できない", async ({ page }) => {
-  test.setTimeout(120_000); // 二段階認証のコードを2回待つ（同じ30秒の区切りのコードは使えない）
   await login(page, "owner@fushimi.example");
   await page.getByRole("link", { name: "設定" }).click();
   // AIで設定：ことばから設定案を作り、1つずつ確認して反映する（E2Eでは外部のAIを呼ばない偽物）
@@ -107,12 +81,9 @@ test("オーナーは設定を変更でき、スタッフは設定を変更で�
   await page.getByRole("tab", { name: "担当者" }).click();
   await page.getByRole("button", { name: "勤務" }).first().click();
   await expect(page.getByRole("heading", { name: "週の勤務" })).toBeVisible();
-  // アカウント：今のコードで本人を確かめ、回復コードを作り直す
+  // アカウント：Googleカレンダーの接続の状態を確かめる
   await page.getByRole("link", { name: "アカウント" }).click();
-  await expect(page.getByText("二段階認証：設定済み")).toBeVisible();
-  await page.getByLabel("認証アプリの6桁（または回復コード）").fill(await freshCode(page));
-  await page.getByRole("button", { name: "回復コードを作り直す" }).click();
-  await expect(page.getByText(/古い回復コードは使えなくなりました/)).toBeVisible();
+  await expect(page.getByText("Googleカレンダー：接続済み")).toBeVisible();
   await page.getByRole("button", { name: "ログアウト" }).click();
 
   await login(page, "staff@fushimi.example");
@@ -135,8 +106,7 @@ async function inviteToken(email: string): Promise<string> {
   throw new Error(`invitation mail not found for ${email}`);
 }
 
-test("オーナーがスタッフを招待し、招待されたひとがパスワードを決めて参加できる", async ({ page, browser }) => {
-  test.setTimeout(90_000);
+test("オーナーがスタッフを招待し、招待されたひとがGoogleで参加できる", async ({ page, browser }) => {
   const email = `invited-${Date.now()}@example.com`;
   await login(page, "owner@fushimi.example");
   await page.getByRole("link", { name: "設定" }).click();
@@ -146,13 +116,13 @@ test("オーナーがスタッフを招待し、招待されたひとがパス�
   await page.getByRole("button", { name: "招待メールを送る" }).click();
   await expect(page.getByText(`${email} に招待メールを送りました。`)).toBeVisible();
 
-  const invited = await (await browser.newContext()).newPage();
+  const context = await browser.newContext();
+  await context.addCookies([{ name: "e2e_google_email", value: email, url: APP }]);
+  const invited = await context.newPage();
   await invited.goto(`${APP}/invite?token=${await inviteToken(email)}`);
   await expect(invited.getByText(/伏見整体院/)).toBeVisible();
-  await invited.getByLabel("お名前").fill("招待 太郎");
-  await invited.getByLabel("パスワードを決める").fill("e2e-invited-pass-2026");
-  await invited.getByRole("button", { name: "参加する" }).click();
+  await invited.getByRole("button", { name: "Googleで参加する" }).click();
   await expect(invited.getByRole("heading", { name: "予約", exact: true })).toBeVisible();
-  await invited.getByRole("link", { name: "カレンダー" }).click();
-  await expect(invited.getByRole("region", { name: "E2E担当" })).toBeVisible(); // 自分の列だけ
+  await invited.getByRole("link", { name: "アカウント" }).click();
+  await expect(invited.getByText("Googleカレンダー：接続済み")).toBeVisible();
 });

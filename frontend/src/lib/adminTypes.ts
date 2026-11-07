@@ -25,10 +25,10 @@ export interface Billing {
 }
 
 export interface Me {
-  /** 二段階認証を設定済みか（任意） */
-  two_factor_enabled: boolean;
   email: string;
   name: string;
+  /** 本人のGoogleカレンダーを接続しているか。切れていると、予約枠が出ない */
+  calendar_connected: boolean;
   memberships: Membership[];
 }
 
@@ -60,22 +60,6 @@ export interface Options {
   staff_id: number | null;
   services: Service[];
   staff: Staff[];
-}
-
-export interface TimeOff {
-  id: number;
-  staff: number | null;
-  staff_name: string;
-  starts_at: string;
-  ends_at: string;
-  reason: string;
-  affected_bookings?: AdminBooking[];
-}
-
-export interface CalendarDay {
-  date: string;
-  staff: { id: number; display_name: string }[];
-  bookings: AdminBooking[];
-  breaks: { staff: number | null; starts_at: string; ends_at: string }[];
-  time_offs: TimeOff[];
+  /** Googleカレンダーが未接続・接続切れで、予約枠に出ていない担当者 */
+  calendar_issues: { staff_id: number; name: string }[];
 }

@@ -18,3 +18,5 @@ CSRF_COOKIE_SECURE = False
 
 # Next.js が X-Forwarded-Host でテナントを通知するため有効化
 USE_X_FORWARDED_HOST = True
+# Cloudflare 経由のHTTPSを正しく扱う（Googleのリダイレクト先のURLを https で作るため）
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

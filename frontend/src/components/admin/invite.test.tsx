@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => nav.pathname,
 }));
 
-const owner: Me = { email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] } as Me;
+const owner: Me = { email: "o@example.com", name: "院長", calendar_connected: true, memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] } as Me;
 
 function csrf(url: string) {
   if (url.endsWith("/auth/csrf")) {
@@ -29,17 +29,15 @@ afterEach(() => {
 });
 
 describe("invitation", () => {
-  it("lets a new person set a password and join, without redirecting to login first", async () => {
-    const calls = mockFetch((url, init) => {
+  it("lets an invited person join with Google, without redirecting to login first", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    const calls = mockFetch((url) => {
       const c = csrf(url);
       if (c) return c;
       if (url.endsWith("/auth/me")) return { status: 403, body: {} };
-      if (url.endsWith("/accept")) {
-        return calls.filter((x) => x.url.endsWith("/accept")).length === 1
-          ? { status: 400, body: { message: "このパスワードは短すぎます。" } }
-          : { body: { ...owner, memberships: [{ ...owner.memberships[0], role: "staff" }] } };
-      }
-      return init?.method ? { body: {} } : { body: { tenant: "伏見整体院", email: "new@example.com", role: "staff", staff_name: "Dさん", has_account: false } };
+      if (url.endsWith("/google/start")) return { body: { url: "/accounts/google/login/?process=login" } };
+      return { body: { tenant: "伏見整体院", email: "new@example.com", role: "staff", staff_name: "Dさん" } };
     });
     render(
       <AdminProvider>
@@ -48,47 +46,23 @@ describe("invitation", () => {
     );
     expect(await screen.findByText(/伏見整体院/)).toBeInTheDocument();
     expect(screen.getByText(/担当者：Dさん/)).toBeInTheDocument();
+    expect(screen.getByText("new@example.com")).toBeInTheDocument();
     expect(nav.replace).not.toHaveBeenCalledWith("/login");
-    await userEvent.type(screen.getByLabelText("お名前"), "田中");
-    await userEvent.type(screen.getByLabelText("パスワードを決める"), "short");
-    await userEvent.click(screen.getByRole("button", { name: "参加する" }));
-    expect(await screen.findByText("このパスワードは短すぎます。")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("パスワードを決める"), "-longer-pass");
-    await userEvent.click(screen.getByRole("button", { name: "参加する" }));
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/bookings"));
-    expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ password: "short-longer-pass", name: "田中" });
+    expect(screen.queryByLabelText(/パスワード/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Googleで参加する" }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/accounts/google/login/?process=login"));
+    expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ kind: "invite", token: "tok" });
   });
 
-  it("asks an existing account for its password (and code), and explains invalid links", async () => {
-    const calls = mockFetch((url) => {
-      const c = csrf(url);
-      if (c) return c;
-      if (url.endsWith("/auth/me")) return { status: 403, body: {} };
-      if (url.endsWith("/accept"))
-        return calls.filter((x) => x.url.endsWith("/accept")).length === 1
-          ? { status: 400, body: { code: "two_factor_required", message: "認証アプリの6桁（または回復コード）を入力してください" } }
-          : { body: owner };
-      if (url.includes("/invitations/bad")) return { status: 404, body: { detail: "この招待は無効か、期限が切れています" } };
-      return { body: { tenant: "伏見整体院", email: "o2@example.com", role: "owner", staff_name: "", has_account: true } };
-    });
-    const { unmount } = render(
-      <AdminProvider>
-        <InvitePage token="tok" />
-      </AdminProvider>,
-    );
-    await userEvent.type(await screen.findByLabelText("パスワード"), "pw");
-    await userEvent.click(screen.getByRole("button", { name: "参加する" }));
-    await userEvent.type(await screen.findByLabelText("確認コード"), "123456");
-    await userEvent.click(screen.getByRole("button", { name: "参加する" }));
-    await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/bookings"));
-    expect(JSON.parse(String(calls.filter((x) => x.url.endsWith("/accept"))[1].init?.body))).toEqual({ password: "pw", name: "", code: "123456" });
-    unmount();
+  it("explains invalid links", async () => {
+    mockFetch((url) => (url.endsWith("/auth/me") ? { status: 403, body: {} } : { status: 404, body: { detail: "この招待は無効か、期限が切れています" } }));
     render(
       <AdminProvider>
         <InvitePage token="bad" />
       </AdminProvider>,
     );
     expect(await screen.findByText("この招待は無効か、期限が切れています")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Googleで参加する" })).not.toBeInTheDocument();
   });
 
   it("owner invites, revokes and pauses members", async () => {
@@ -108,8 +82,9 @@ describe("invitation", () => {
         return {
           body: {
             members: [
-              { id: 1, email: "o@example.com", name: "院長", role: "owner", staff: 10, staff_name: "Aさん", is_active: true },
-              { id: 2, email: "b@example.com", name: "", role: "staff", staff: null, staff_name: "", is_active: false },
+              { id: 1, email: "o@example.com", name: "院長", role: "owner", staff: 10, staff_name: "Aさん", is_active: true, calendar_connected: true },
+              { id: 2, email: "b@example.com", name: "", role: "staff", staff: null, staff_name: "", is_active: false, calendar_connected: false },
+              { id: 3, email: "c@example.com", name: "", role: "staff", staff: 13, staff_name: "Eさん", is_active: true, calendar_connected: false },
             ],
             invitations: [
               { id: 5, email: "x@example.com", role: "staff", staff: 12, staff_name: "Cさん", state: "open", expires_at: "2026-11-12T10:00:00+09:00" },
@@ -128,6 +103,7 @@ describe("invitation", () => {
     expect(await screen.findByText(/担当者：Aさん/)).toBeInTheDocument();
     expect(screen.getByText(/（停止中）/)).toBeInTheDocument();
     expect(screen.getByText(/期限切れ/)).toBeInTheDocument();
+    expect(screen.getByText(/Googleカレンダーの接続が切れています/)).toBeInTheDocument();
     // Aさんはログインする人がいるので、担当者の選択肢に出ない
     expect(screen.queryByRole("option", { name: "Aさん" })).not.toBeInTheDocument();
 
