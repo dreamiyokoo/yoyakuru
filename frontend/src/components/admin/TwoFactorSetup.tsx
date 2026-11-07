@@ -8,13 +8,17 @@ import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { Notice } from "../ui/Notice";
 
+export const TWO_FACTOR_LEAD =
+  "オーナーのアカウントは、パスワードに加えて、スマホの認証アプリ（Google Authenticator など）のコードでログインします。設定が済むまで、店舗の管理はできません。";
+
 /** 36 二段階認証の設定（LOGIN-07：オーナーは必須）。QRコードを認証アプリで読み取り、表示された6桁で確認する。 */
-export function TwoFactorSetup({ onDone }: { onDone: (me: Me) => void }) {
+export function TwoFactorSetup({ onDone, bare }: { onDone: (me: Me) => void; /** 見出しと説明を外側（利用開始の枠）で出すとき */ bare?: boolean }) {
   const [setup, setSetup] = useState<{ secret: string; uri: string; qr_svg: string } | null>(null);
   const [code, setCode] = useState("");
   const [done, setDone] = useState<(Me & { recovery_codes: string[] }) | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -38,29 +42,47 @@ export function TwoFactorSetup({ onDone }: { onDone: (me: Me) => void }) {
             <li key={c}>{c}</li>
           ))}
         </ul>
-        <Button onClick={() => onDone(done)}>保存しました</Button>
+        <Button
+          variant="secondary"
+          onClick={() =>
+            void navigator.clipboard
+              ?.writeText(done.recovery_codes.join("\n"))
+              .then(() => setCopied(true))
+              .catch(() => undefined)
+          }
+        >
+          {copied ? "コピーしました" : "回復コードをコピーする"}
+        </Button>
+        <Button onClick={() => onDone(done)}>保存しました。次へ進む</Button>
       </section>
     );
   }
 
   return (
     <section aria-label="二段階認証の設定" className="flex flex-col gap-3">
-      <h2 className="font-bold">二段階認証を設定してください</h2>
-      <p className="text-sm">
-        オーナーのアカウントは、パスワードに加えて、スマホの認証アプリ（Google Authenticator など）のコードでログインします。設定が済むまで、店舗の管理はできません。
-      </p>
+      {bare ? null : (
+        <>
+          <h2 className="font-bold">二段階認証を設定してください</h2>
+          <p className="text-sm">{TWO_FACTOR_LEAD}</p>
+        </>
+      )}
       {error ? <Notice tone="warn">{error}</Notice> : null}
       {setup ? (
         <>
+          <ol className="flex flex-col gap-1 text-sm">
+            <li>1. スマホに認証アプリ（Google Authenticator など）を入れる</li>
+            <li>2. 認証アプリで、下のQRコードを読み取る</li>
+            <li>3. 認証アプリに表示された6桁を入力する</li>
+          </ol>
           {/* eslint-disable-next-line @next/next/no-img-element -- サーバーが作ったQRコード（SVG） */}
           <img alt="認証アプリで読み取るQRコード" className="h-48 w-48 self-center" src={`data:image/svg+xml;utf8,${encodeURIComponent(setup.qr_svg)}`} />
-          <p className="text-xs text-sub">
+          <p className="text-sm text-sub">
             QRコードを読み取れないときは、認証アプリに次の鍵を入力してください：<span className="break-all font-mono">{setup.secret}</span>
           </p>
           <a className="text-sm text-button underline" href={setup.uri}>
             このスマホの認証アプリで開く
           </a>
-          <Field label="認証アプリに表示された6桁" value={code} onChange={setCode} autoComplete="one-time-code" required />
+          <Field label="認証アプリに表示された6桁" value={code} onChange={setCode} autoComplete="one-time-code" inputMode="numeric" required />
           <Button disabled={busy || !code.trim()} onClick={() => void run(async () => setDone(await adminApi.confirmTwoFactor(code.trim())))}>
             確認して有効にする
           </Button>

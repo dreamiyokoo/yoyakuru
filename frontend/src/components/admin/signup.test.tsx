@@ -31,7 +31,59 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
+async function fill(values: Partial<Record<string, string>> = {}) {
+  const v = { お店の名前: "こもれび整体院", 予約ページのURL: "Komorebi ", お名前: "木漏 日子", メールアドレス: " k@example.com ", パスワード: "long-enough-pass-1", ...values };
+  for (const [label, text] of Object.entries(v)) {
+    const input = screen.getByLabelText(label);
+    await userEvent.clear(input);
+    if (text) await userEvent.type(input, text);
+  }
+}
+
+function renderSignup() {
+  return render(
+    <AdminProvider>
+      <SignupPage />
+    </AdminProvider>,
+  );
+}
+
 describe("signup", () => {
+  it("checks the fields before sending and lists the problems", async () => {
+    const calls = mockFetch((url) => csrf(url) ?? (url.endsWith("/auth/me") ? { status: 403, body: {} } : { body: {} }));
+    renderSignup();
+    await userEvent.click(await screen.findByRole("button", { name: "登録して次へ" }));
+    const summary = screen.getByRole("alert");
+    expect(summary).toHaveTextContent("入力を確認してください（5件）");
+    await vi.waitFor(() => expect(summary).toHaveFocus());
+    expect(screen.getByRole("link", { name: "お店の名前を入力してください" })).toHaveAttribute("href", "#signup-store_name");
+    await fill({ 予約ページのURL: "-ab", メールアドレス: "not-mail", パスワード: "short" });
+    await userEvent.click(screen.getByRole("button", { name: "登録して次へ" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("（3件）");
+    expect(screen.getAllByText(/英小文字・数字・ハイフンで3〜32文字にしてください/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("メールアドレスの形が正しくありません").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("パスワードは8文字以上にしてください").length).toBeGreaterThan(0);
+    expect(calls.some((c) => c.url.endsWith("/auth/signup"))).toBe(false);
+    // 直し始めた欄のエラーは消える
+    await userEvent.type(screen.getByLabelText("パスワード"), "-more-letters");
+    expect(screen.queryByText("パスワードは8文字以上にしてください", { selector: "p" })).toBeNull();
+  });
+
+  it("checks a field when leaving it, and shows the password on request", async () => {
+    mockFetch((url) => csrf(url) ?? (url.endsWith("/auth/me") ? { status: 403, body: {} } : { body: {} }));
+    renderSignup();
+    await userEvent.type(await screen.findByLabelText("メールアドレス"), "abc");
+    await userEvent.tab();
+    expect(screen.getByText("メールアドレスの形が正しくありません")).toBeInTheDocument();
+    const password = screen.getByLabelText("パスワード");
+    expect(password).toHaveAttribute("type", "password");
+    await userEvent.click(screen.getByRole("button", { name: "入力した文字を表示する" }));
+    expect(password).toHaveAttribute("type", "text");
+    expect(screen.getByRole("button", { name: "入力した文字を隠す" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(/^\.(localhost|dreami\.blog)$/)).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: /3つのうち1つ目/ })).toBeInTheDocument();
+  });
+
   it("shows field errors from the server, then signs up and moves on", async () => {
     let n = 0;
     const calls = mockFetch((url) => {
@@ -44,21 +96,14 @@ describe("signup", () => {
           : { status: 201, body: me };
       return { body: {} };
     });
-    render(
-      <AdminProvider>
-        <SignupPage />
-      </AdminProvider>,
-    );
-    await userEvent.type(await screen.findByLabelText("お店の名前"), "こもれび整体院");
-    await userEvent.type(screen.getByLabelText("予約ページのURL"), "Komorebi ");
-    expect(screen.getByText(/https:\/\/komorebi\./)).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("お名前"), "木漏 日子");
-    await userEvent.type(screen.getByLabelText("メールアドレス"), " k@example.com ");
-    await userEvent.type(screen.getByLabelText("パスワード"), "long-enough-pass-1");
-    await userEvent.click(screen.getByRole("button", { name: "登録する" }));
-    expect(await screen.findByText("このURLは既に使われています")).toBeInTheDocument();
-    expect(screen.getByText("短すぎます よく使われています")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "登録する" }));
+    renderSignup();
+    await screen.findByLabelText("お店の名前");
+    await fill();
+    await userEvent.click(screen.getByRole("button", { name: "登録して次へ" }));
+    expect(await screen.findByRole("link", { name: "このURLは既に使われています" })).toBeInTheDocument();
+    expect(screen.getAllByText("短すぎます よく使われています").length).toBe(2);
+    await fill();
+    await userEvent.click(screen.getByRole("button", { name: "登録して次へ" }));
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/bookings"));
     const sent = calls.filter((c) => c.url.endsWith("/auth/signup"));
     expect(JSON.parse(String(sent[1].init?.body))).toEqual({
@@ -72,12 +117,10 @@ describe("signup", () => {
 
   it("shows a general message when the server gives no field errors", async () => {
     mockFetch((url) => csrf(url) ?? (url.endsWith("/auth/me") ? { status: 403, body: {} } : { status: 429, body: { detail: "しばらくしてからお試しください" } }));
-    render(
-      <AdminProvider>
-        <SignupPage />
-      </AdminProvider>,
-    );
-    await userEvent.click(await screen.findByRole("button", { name: "登録する" }));
+    renderSignup();
+    await screen.findByLabelText("お店の名前");
+    await fill();
+    await userEvent.click(screen.getByRole("button", { name: "登録して次へ" }));
     expect(await screen.findByText("しばらくしてからお試しください")).toBeInTheDocument();
   });
 });

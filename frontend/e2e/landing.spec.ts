@@ -14,14 +14,14 @@ test("サービス紹介ページから登録し、二段階認証の後にお�
   await page.getByLabel("お名前").fill("試験 太郎");
   await page.getByLabel("メールアドレス").fill(`${sub}@example.com`);
   await page.getByLabel("パスワード").fill("e2e-signup-pass-1");
-  await page.getByRole("button", { name: "登録する" }).click();
+  await page.getByRole("button", { name: "登録して次へ" }).click();
 
   // オーナーは二段階認証が必須
   await page.getByRole("button", { name: "設定を始める" }).click();
   const secret = (await page.locator(".font-mono").first().textContent())!.trim();
   await page.getByLabel("認証アプリに表示された6桁").fill(totp(secret));
   await page.getByRole("button", { name: "確認して有効にする" }).click();
-  await page.getByRole("button", { name: "保存しました" }).click();
+  await page.getByRole("button", { name: "保存しました。次へ進む" }).click();
 
   // 支払いが済むまでは使えない。E2E では Stripe を設定しないので「準備中」になる
   await expect(page.getByRole("heading", { name: "お支払いを登録して、利用を始めましょう" })).toBeVisible();

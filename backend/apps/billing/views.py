@@ -98,7 +98,19 @@ def billing_payload(sub: Subscription | None) -> dict:
         "cancel_at_period_end": bool(sub and sub.cancel_at_period_end),
         "manageable": bool(sub and sub.stripe_customer_id),
         "configured": stripe_api.configured(),
+        "price_label": stripe_api.plan_label(),
     }
+
+
+class PlanView(APIView):
+    """LP に出す料金の表記（ログイン不要）。"""
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "public_read"
+
+    def get(self, request):
+        return Response({"price_label": stripe_api.plan_label()})
 
 
 class OwnerBillingView(TenantAdminView):

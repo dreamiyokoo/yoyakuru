@@ -149,3 +149,5 @@ ADMIN_APP_URL = os.environ.get("ADMIN_APP_URL") or f"https://app.{TENANT_BASE_DO
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 STRIPE_PRICE_ID = os.environ.get("STRIPE_PRICE_ID", "")
+# 料金の表記（LP・支払いの案内）。空なら Stripe の価格から作る（例：月額1,980円（税込））
+PLAN_PRICE_LABEL = os.environ.get("PLAN_PRICE_LABEL", "")

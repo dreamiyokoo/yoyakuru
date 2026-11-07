@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import secrets
 import time
 
@@ -37,7 +38,11 @@ def start_setup(user) -> tuple[TwoFactor, str, str]:
         tf.secret = pyotp.random_base32()
         tf.save(update_fields=["secret"])
     uri = pyotp.TOTP(tf.secret).provisioning_uri(name=user.email, issuer_name=ISSUER)
-    svg = segno.make(uri, error="m").svg_inline(scale=4)
+    # 画面は data URL の画像として表示するので、名前空間（xmlns）付きの完全なSVGにする。
+    # svg_inline は xmlns を省くため、ブラウザが画像として読めず、QRコードが表示されなかった
+    buf = io.BytesIO()
+    segno.make(uri, error="m").save(buf, kind="svg", scale=4, border=2, xmldecl=False, svgns=True)
+    svg = buf.getvalue().decode()
     return tf, uri, svg
 
 

@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAdmin } from "./AdminContext";
 import { BillingRequired } from "./BillingRequired";
-import { TwoFactorSetup } from "./TwoFactorSetup";
+import { Onboarding } from "./Onboarding";
+import { TWO_FACTOR_LEAD, TwoFactorSetup } from "./TwoFactorSetup";
 
 const TABS = [
   { href: "/bookings", label: "予約" },
@@ -19,6 +20,15 @@ export function AdminShell({ title, action, children }: { title: string; action?
   const { me, membership, setTenant, signOut, signedIn } = useAdmin();
   const pathname = usePathname();
   if (!me) return null;
+  // 利用を始めるまで（二段階認証・お支払い）は、管理画面のタブを出さずに手順だけを見せる
+  if (me.two_factor_required && !me.two_factor_enabled) {
+    return (
+      <Onboarding step={membership?.billing_managed ? 2 : undefined} title="二段階認証を設定してください" lead={<p>{TWO_FACTOR_LEAD}</p>} onSignOut={() => void signOut()}>
+        <TwoFactorSetup onDone={signedIn} bare />
+      </Onboarding>
+    );
+  }
+  if (membership?.billing_required) return <BillingRequired membership={membership} onPaid={signedIn} onSignOut={() => void signOut()} />;
   return (
     <div className="mx-auto flex min-h-dvh max-w-3xl flex-col bg-card">
       <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-line bg-card px-4 py-3">
@@ -46,11 +56,7 @@ export function AdminShell({ title, action, children }: { title: string; action?
         </button>
       </header>
       <main className="flex flex-1 flex-col gap-3 px-4 py-4">
-        {me.two_factor_required && !me.two_factor_enabled ? (
-          <TwoFactorSetup onDone={signedIn} />
-        ) : membership?.billing_required ? (
-          <BillingRequired membership={membership} onPaid={signedIn} />
-        ) : membership ? (
+        {membership ? (
           children(membership.subdomain)
         ) : (
           <p className="text-sm">所属している店舗がありません。店舗のオーナーに招待を依頼してください。</p>

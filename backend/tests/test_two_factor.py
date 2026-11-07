@@ -59,7 +59,9 @@ def test_owner_without_two_factor_must_set_it_up_before_managing(store, staff):
     assert r.status_code == 403 and "二段階認証" in r.json()["detail"]
 
     setup = c.post("/api/v1/auth/2fa/setup").json()
-    assert setup["uri"].startswith("otpauth://totp/") and "<svg" in setup["qr_svg"]
+    assert setup["uri"].startswith("otpauth://totp/") and setup["qr_svg"].startswith(
+        '<svg xmlns="http://www.w3.org/2000/svg"'
+    )
     again = c.post("/api/v1/auth/2fa/setup").json()
     assert again["secret"] != setup["secret"]  # やり直すと新しい鍵になる
     assert c.post("/api/v1/auth/2fa/confirm", {"code": code(setup["secret"])}, format="json").status_code == 400

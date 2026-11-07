@@ -107,7 +107,7 @@ describe("account", () => {
     await userEvent.click(await screen.findByRole("button", { name: "設定を始める" }));
     await userEvent.type(await screen.findByLabelText("認証アプリに表示された6桁"), "123456");
     await userEvent.click(screen.getByRole("button", { name: "確認して有効にする" }));
-    await userEvent.click(await screen.findByRole("button", { name: "保存しました" }));
+    await userEvent.click(await screen.findByRole("button", { name: "保存しました。次へ進む" }));
     expect(await screen.findByText("二段階認証を設定しました。")).toBeInTheDocument();
   });
 
