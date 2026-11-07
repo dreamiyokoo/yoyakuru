@@ -21,7 +21,7 @@ async function tokenFromMail(email: string, kind: "confirm" | "cancel"): Promise
 
 /** 取消の締切（前日まで）に余裕があるよう、翌週以降の最初の空き枠を選ぶ。 */
 async function chooseFirstOpenSlot(page: Page) {
-  await page.getByRole("button", { name: "次の週 ›" }).click();
+  await page.getByRole("button", { name: "次の週" }).click();
   for (let week = 0; week < 3; week++) {
     const days = page.getByRole("radiogroup", { name: "日付" }).getByRole("radio");
     for (let i = 0; i < 7; i++) {
@@ -36,7 +36,7 @@ async function chooseFirstOpenSlot(page: Page) {
         return;
       }
     }
-    await page.getByRole("button", { name: "次の週 ›" }).click();
+    await page.getByRole("button", { name: "次の週" }).click();
   }
   throw new Error("no open slot");
 }

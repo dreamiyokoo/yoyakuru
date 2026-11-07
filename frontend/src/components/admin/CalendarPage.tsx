@@ -7,6 +7,7 @@ import { addDays, formatDateKey, toDateKey } from "@/lib/format";
 import { Notice } from "../ui/Notice";
 import { AdminShell, STATUS_LABEL } from "./AdminShell";
 import { CalendarFeed } from "./CalendarFeed";
+import { ChevronLeft, ChevronRight } from "../ui/icons";
 import { useLoad } from "./useLoad";
 
 const START_HOUR = 9;
@@ -51,14 +52,16 @@ function Day({ sub, date, setDate, today }: { sub: string; date: string; setDate
   return (
     <>
       <div className="flex items-center justify-between">
-        <button type="button" className="min-h-11 rounded-md border border-line px-3 text-sm" onClick={() => setDate(addDays(date, -1))}>
-          ‹ 前日
+        <button type="button" className="flex min-h-11 cursor-pointer items-center gap-1 rounded-md border border-line px-3 text-sm transition-colors duration-150 hover:bg-surface" onClick={() => setDate(addDays(date, -1))}>
+          <ChevronLeft className="h-4 w-4" />
+          前日
         </button>
         <button type="button" className="min-h-11 px-3 text-sm text-sub" onClick={() => setDate(today)}>
           今日
         </button>
-        <button type="button" className="min-h-11 rounded-md border border-line px-3 text-sm" onClick={() => setDate(addDays(date, 1))}>
-          翌日 ›
+        <button type="button" className="flex min-h-11 cursor-pointer items-center gap-1 rounded-md border border-line px-3 text-sm transition-colors duration-150 hover:bg-surface" onClick={() => setDate(addDays(date, 1))}>
+          翌日
+          <ChevronRight className="h-4 w-4" />
         </button>
       </div>
       {loading ? <p className="text-sm text-sub">読み込み中…</p> : null}

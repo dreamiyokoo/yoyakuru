@@ -5,7 +5,7 @@ import { ApiError } from "@/lib/api";
 import { adminApi } from "@/lib/adminApi";
 import type { Me, Membership } from "@/lib/adminTypes";
 import { Button } from "../ui/Button";
-import { Check, Lock } from "../lp/icons";
+import { Check, Lock } from "../ui/icons";
 import { Notice } from "../ui/Notice";
 import { Onboarding } from "./Onboarding";
 

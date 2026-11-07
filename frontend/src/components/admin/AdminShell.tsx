@@ -4,15 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAdmin } from "./AdminContext";
+import { Calendar, CalendarX, List, Sliders } from "../ui/icons";
 import { BillingRequired } from "./BillingRequired";
 import { Onboarding } from "./Onboarding";
 import { TWO_FACTOR_LEAD, TwoFactorSetup } from "./TwoFactorSetup";
 
+// 文字だけでなくアイコンでも見分けられるようにする（UX: navigation recognizability）
 const TABS = [
-  { href: "/bookings", label: "予約" },
-  { href: "/calendar", label: "カレンダー" },
-  { href: "/time-off", label: "休み" },
-  { href: "/settings", label: "設定" },
+  { href: "/bookings", label: "予約", Icon: List },
+  { href: "/calendar", label: "カレンダー", Icon: Calendar },
+  { href: "/time-off", label: "休み", Icon: CalendarX },
+  { href: "/settings", label: "設定", Icon: Sliders },
 ];
 
 /** 管理画面の枠（ヘッダーと下部のタブ）。店舗に所属していなければ案内だけを出す。 */
@@ -62,7 +64,7 @@ export function AdminShell({ title, action, children }: { title: string; action?
           <p className="text-sm">所属している店舗がありません。店舗のオーナーに招待を依頼してください。</p>
         )}
       </main>
-      <nav aria-label="管理メニュー" className="sticky bottom-0 flex justify-around border-t border-line bg-card pb-5 pt-2">
+      <nav aria-label="管理メニュー" className="sticky bottom-0 flex justify-around border-t border-line bg-card pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
         {TABS.map((t) => {
           const active = pathname.startsWith(t.href);
           return (
@@ -70,8 +72,9 @@ export function AdminShell({ title, action, children }: { title: string; action?
               key={t.href}
               href={t.href}
               aria-current={active ? "page" : undefined}
-              className={`flex min-h-11 min-w-16 items-center justify-center rounded-md px-3 text-sm ${active ? "font-bold text-button" : "text-sub"}`}
+              className={`flex min-h-12 min-w-16 flex-col items-center justify-center gap-0.5 rounded-md px-3 text-xs transition-colors duration-150 ${active ? "font-bold text-button" : "text-sub hover:text-ink"}`}
             >
+              <t.Icon className="h-5 w-5" />
               {t.label}
             </Link>
           );

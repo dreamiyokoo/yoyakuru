@@ -10,6 +10,7 @@ import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { Notice } from "../ui/Notice";
 import { useAdmin } from "./AdminContext";
+import { Onboarding } from "./Onboarding";
 
 /** 24 ログイン。 */
 export function LoginPage() {
@@ -46,8 +47,7 @@ export function LoginPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 px-6">
-      <h1 className="font-display text-2xl font-bold text-button">ヨヤクル 管理画面</h1>
+    <Onboarding title={needsCode ? "確認コードを入力" : "ログイン"} lead={needsCode ? <p>スマホの認証アプリに表示されている6桁を入力してください。</p> : undefined}>
       <form onSubmit={submit} className="flex flex-col gap-4">
         {needsCode ? (
           <Field
@@ -55,6 +55,7 @@ export function LoginPage() {
             value={code}
             onChange={setCode}
             autoComplete="one-time-code"
+            inputMode="numeric"
             hint="認証アプリに表示される6桁の数字です。認証アプリを使えないときは、回復コードを入力してください"
             required
           />
@@ -90,6 +91,6 @@ export function LoginPage() {
           </Link>
         </p>
       )}
-    </main>
+    </Onboarding>
   );
 }

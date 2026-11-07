@@ -122,7 +122,10 @@ describe("bookings", () => {
     const calls = api((url) => (url.includes("/bookings?") ? { body: url.includes("date_to=2026-11-17") ? [booking({ status: "hold", channel: "phone" })] : [] } : undefined));
     const user = userEvent.setup();
     withAdmin(<BookingListPage today="2026-11-11" />);
-    expect(await screen.findByText("この期間の予約はありません。")).toBeInTheDocument();
+    expect(await screen.findByText("この期間の予約はありません")).toBeInTheDocument();
+    // 予約がないときは、予約ページのURLを案内する（管理画面と同じドメインの店舗のサブドメイン）
+    expect(screen.getByText(/^http:\/\/(fushimi\.)?localhost/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "URLをコピーする" })).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "今週" }));
     expect(await screen.findByText("仮押さえ")).toBeInTheDocument();
     expect(screen.getByText(/電話（AI）/)).toBeInTheDocument();
@@ -251,9 +254,9 @@ describe("calendar and time off", () => {
     expect(screen.getByLabelText("山田 花子 仮押さえ")).toBeInTheDocument();
     expect(screen.getAllByLabelText("休憩")).toHaveLength(2);
     expect(screen.getByLabelText("予約不可")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "翌日 ›" }));
+    await user.click(screen.getByRole("button", { name: "翌日" }));
     await waitFor(() => expect(calls.some((c) => c.url.includes("date=2026-11-12"))).toBe(true));
-    await user.click(screen.getByRole("button", { name: "‹ 前日" }));
+    await user.click(screen.getByRole("button", { name: "前日" }));
     await user.click(screen.getByRole("button", { name: "今日" }));
     expect(screen.getByRole("heading", { name: "11月11日（水）" })).toBeInTheDocument();
   });

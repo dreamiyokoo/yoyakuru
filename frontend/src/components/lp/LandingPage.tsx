@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowRight, Calendar, Chat, Check, ChevronDown, Clock, Layers, Minus, Phone, PhoneOff } from "./icons";
+import { ArrowRight, Calendar, Chat, Check, ChevronDown, Clock, Layers, Minus, Phone, PhoneOff } from "../ui/icons";
 
 /**
  * サービス紹介ページ（LP）。
