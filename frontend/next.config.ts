@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${apiBase}/api/:path*`,
       },
+      // Googleログイン（django-allauth）。Next.js が末尾の / を外すため、Django の URL に合わせて付け直す
+      {
+        source: "/accounts/:path*",
+        destination: `${apiBase}/accounts/:path*/`,
+      },
     ];
   },
   async headers() {
