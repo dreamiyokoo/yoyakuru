@@ -14,7 +14,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const membership = { subdomain: "komorebi", name: "こもれび整体院", role: "owner" as const, staff_id: null, billing_required: true, billing_managed: true };
-const me: Me = { two_factor_enabled: false, two_factor_required: true, email: "k@example.com", name: "木漏 日子", memberships: [membership] };
+const me: Me = { two_factor_enabled: false, email: "k@example.com", name: "木漏 日子", memberships: [membership] };
 
 function csrf(url: string) {
   if (url.endsWith("/auth/csrf")) {
@@ -81,7 +81,7 @@ describe("signup", () => {
     expect(password).toHaveAttribute("type", "text");
     expect(screen.getByRole("button", { name: "入力した文字を隠す" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(/^\.(localhost|dreami\.blog)$/)).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: /3つのうち1つ目/ })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: /2つのうち1つ目/ })).toBeInTheDocument();
   });
 
   it("shows field errors from the server, then signs up and moves on", async () => {

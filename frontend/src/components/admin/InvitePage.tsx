@@ -58,7 +58,6 @@ export function InvitePage({ token }: { token: string }) {
             </>
           )}
           {needsCode ? <Field label="確認コード" value={code} onChange={setCode} autoComplete="one-time-code" hint="認証アプリの6桁、または回復コード" required /> : null}
-          {info.data.role === "owner" ? <p className="text-xs text-sub">オーナーは、参加の後に二段階認証の設定が必要です。</p> : null}
           {error ? <Notice tone="warn">{error}</Notice> : null}
           <Button type="submit" disabled={busy || !password}>
             {busy ? "参加しています…" : "参加する"}

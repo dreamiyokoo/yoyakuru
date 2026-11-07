@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 
-const STEPS = ["登録", "二段階認証", "お支払い"];
+const STEPS = ["登録", "お支払い"];
 
 /**
- * 利用開始までの画面（登録 → 二段階認証 → お支払い）の枠。
+ * 利用開始までの画面（登録 → お支払い）の枠。
  * 管理画面のタブは、使えるようになるまで出さない。今どこにいるかを常に示す（UX: progress indicators）。
  */
 export function Onboarding({
@@ -50,7 +50,7 @@ export function Onboarding({
 function Steps({ current }: { current: number }) {
   return (
     <nav aria-label={`利用開始までの手順（${STEPS.length}つのうち${current}つ目）`}>
-      <ol className="grid grid-cols-3 gap-2">
+      <ol className="grid grid-cols-2 gap-2">
         {STEPS.map((label, i) => {
           const n = i + 1;
           const state = n < current ? "done" : n === current ? "current" : "todo";

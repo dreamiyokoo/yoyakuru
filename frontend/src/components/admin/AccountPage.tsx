@@ -62,22 +62,23 @@ function Body() {
               disabled={busy || !code.trim()}
               onClick={() =>
                 void run(async () => {
-                  const next = await adminApi.resetTwoFactor(code.trim());
+                  signedIn(await adminApi.resetTwoFactor(code.trim()));
                   setCodes(null);
-                  signedIn(next);
-                  if (next.two_factor_required) setSetup(true); // オーナーはすぐに新しい端末で設定し直す
-                  else setMessage("二段階認証を外しました。");
+                  setMessage("二段階認証を外しました。新しい端末で使うときは、もう一度設定してください。");
                 })
               }
             >
-              認証アプリを変更する（新しい端末で設定し直す）
+              二段階認証を外す
             </Button>
             <p className="text-xs text-sub">端末を失くして回復コードもない場合は、ほかのオーナーに「設定 → メンバー」からリセットを依頼してください。</p>
           </>
         ) : (
-          <Button variant="secondary" onClick={() => setSetup(true)}>
-            二段階認証を設定する
-          </Button>
+          <>
+            <p className="text-sm text-sub">任意です。設定すると、パスワードが漏れても、スマホの認証アプリのコードがなければログインできなくなります。</p>
+            <Button variant="secondary" onClick={() => setSetup(true)}>
+              二段階認証を設定する
+            </Button>
+          </>
         )}
         {codes ? (
           <div className="flex flex-col gap-2">

@@ -33,6 +33,7 @@ from .models import (
     SettingChange,
     ShiftException,
     Staff,
+    Weekday,
     WeeklyShift,
 )
 
@@ -166,6 +167,37 @@ def hours_payload(tenant):
         {"weekday": h.weekday, "opens_at": h.opens_at, "closes_at": h.closes_at}
         for h in BusinessHours.objects.for_tenant(tenant).order_by("weekday")
     ]
+
+
+def setting_warnings(tenant: Tenant) -> list[str]:
+    """空き枠が出なくなる設定の抜け。設定画面の上に出す。"""
+    hours = list(BusinessHours.objects.for_tenant(tenant).order_by("weekday"))
+    if not hours:
+        return ["営業時間が設定されていません。「営業時間」で曜日ごとの時間を入れてください。"]
+    warnings = []
+    shifts = list(WeeklyShift.objects.for_tenant(tenant).filter(staff__is_active=True))
+    unstaffed = [
+        h.weekday
+        for h in hours
+        if not any(s.weekday == h.weekday and s.starts_at < h.closes_at and h.opens_at < s.ends_at for s in shifts)
+    ]
+    if unstaffed:
+        days = "・".join(Weekday(d).label for d in unstaffed)
+        warnings.append(
+            f"営業日なのに勤務している担当者がいません（{days}）。「担当者」の「勤務」で週の勤務を入れてください。"
+        )
+    services = Service.objects.for_tenant(tenant).filter(is_active=True).exclude(staff__is_active=True)
+    if services:
+        names = "・".join(s.name for s in services)
+        warnings.append(
+            f"担当できる人がいないサービスがあります（{names}）。「サービス」の「担当できる人」を選んでください。"
+        )
+    return warnings
+
+
+class SettingWarningsView(SettingsView):
+    def get(self, request, subdomain):
+        return Response({"warnings": setting_warnings(self.tenant)})
 
 
 class BusinessHoursView(SettingsView):
@@ -691,7 +723,7 @@ class MemberTwoFactorResetView(SettingsView):
 
     対象は、この店舗で有効なメンバーで、ほかの店舗に所属していない人だけ。自分自身は外せない。
 
-    外された人は、次のログインがパスワードだけになり、オーナーなら設定し直すまで管理画面を使えない。
+    外された人は、次のログインがパスワードだけになる。
     """
 
     def post(self, request, subdomain, pk):

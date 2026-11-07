@@ -5,6 +5,7 @@ from . import settings_api as v
 # /api/v1/admin/tenants/<店舗名>/settings/ 配下。オーナーのみ
 urlpatterns = [
     path("store", v.StoreSettingsView.as_view()),
+    path("warnings", v.SettingWarningsView.as_view()),
     path("assistant", v.SetupAssistantView.as_view()),
     path("history", v.HistoryView.as_view()),
     path("members", v.MemberListView.as_view()),

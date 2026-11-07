@@ -8,11 +8,8 @@ import { Button } from "../ui/Button";
 import { Field } from "../ui/Field";
 import { Notice } from "../ui/Notice";
 
-export const TWO_FACTOR_LEAD =
-  "オーナーのアカウントは、パスワードに加えて、スマホの認証アプリ（Google Authenticator など）のコードでログインします。設定が済むまで、店舗の管理はできません。";
-
-/** 36 二段階認証の設定（LOGIN-07：オーナーは必須）。QRコードを認証アプリで読み取り、表示された6桁で確認する。 */
-export function TwoFactorSetup({ onDone, bare }: { onDone: (me: Me) => void; /** 見出しと説明を外側（利用開始の枠）で出すとき */ bare?: boolean }) {
+/** 36 二段階認証の設定（LOGIN-07：任意）。QRコードを認証アプリで読み取り、表示された6桁で確認する。 */
+export function TwoFactorSetup({ onDone }: { onDone: (me: Me) => void }) {
   const [setup, setSetup] = useState<{ secret: string; uri: string; qr_svg: string } | null>(null);
   const [code, setCode] = useState("");
   const [done, setDone] = useState<(Me & { recovery_codes: string[] }) | null>(null);
@@ -53,19 +50,15 @@ export function TwoFactorSetup({ onDone, bare }: { onDone: (me: Me) => void; /**
         >
           {copied ? "コピーしました" : "回復コードをコピーする"}
         </Button>
-        <Button onClick={() => onDone(done)}>保存しました。次へ進む</Button>
+        <Button onClick={() => onDone(done)}>回復コードを保存しました</Button>
       </section>
     );
   }
 
   return (
     <section aria-label="二段階認証の設定" className="flex flex-col gap-3">
-      {bare ? null : (
-        <>
-          <h2 className="font-bold">二段階認証を設定してください</h2>
-          <p className="text-sm">{TWO_FACTOR_LEAD}</p>
-        </>
-      )}
+      <h2 className="font-bold">二段階認証を設定する</h2>
+      <p className="text-sm">ログインのとき、パスワードに加えて、スマホの認証アプリ（Google Authenticator など）のコードを入力します。</p>
       {error ? <Notice tone="warn">{error}</Notice> : null}
       {setup ? (
         <>

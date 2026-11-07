@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { adminApi } from "@/lib/adminApi";
 import type { AdminBooking } from "@/lib/adminTypes";
@@ -16,6 +16,9 @@ interface Pending {
   onDone?: (result: unknown) => void;
 }
 
+/** 設定を保存したときに呼ぶ（設定画面の上の注意を読み直す）。 */
+export const SettingSavedContext = createContext<() => void>(() => {});
+
 /**
  * 設定の変更。まず保存せずに試し（dry_run）、影響を受ける予約があれば確認してから保存する（TIME-07、画面33）。
  * 既存の予約は自動で取消さない。
@@ -25,12 +28,14 @@ export function useSettingChange(sub: string, source?: "ai") {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const onSaved = useContext(SettingSavedContext);
 
   const commit = async (p: Omit<Pending, "affected">) => {
     const res = await adminApi.changeSetting(sub, p.path, p.method, p.body, false, source);
     setPending(null);
     setMessage(res.affected_bookings.length ? `保存しました。影響を受ける予約が${res.affected_bookings.length}件あります。` : "保存しました。");
     p.onDone?.(res.result);
+    onSaved();
   };
 
   const change = async (path: string, method: string, body: unknown, onDone?: (result: unknown) => void) => {

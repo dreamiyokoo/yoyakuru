@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Me } from "@/lib/adminTypes";
 import { mockFetch } from "@/test-utils";
+import { AccountPage } from "./AccountPage";
 import { AdminProvider } from "./AdminContext";
 import { BookingListPage } from "./BookingListPage";
 import { LoginPage } from "./LoginPage";
@@ -13,7 +14,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/bookings",
 }));
 
-const base: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
+const base: Me = { two_factor_enabled: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
 
 function csrf(url: string) {
   if (url.endsWith("/auth/csrf")) {
@@ -56,7 +57,24 @@ describe("two-factor login", () => {
     expect(JSON.parse(String(calls.at(-1)?.init?.body))).toEqual({ code: "123456" });
   });
 
-  it("makes an owner set up two-factor before managing, then shows recovery codes once", async () => {
+  it("lets an owner manage without two-factor (it is optional)", async () => {
+    mockFetch((url) => {
+      const c = csrf(url);
+      if (c) return c;
+      if (url.endsWith("/auth/me")) return { body: { ...base, two_factor_enabled: false } };
+      if (url.includes("/bookings")) return { body: [] };
+      return { body: {} };
+    });
+    render(
+      <AdminProvider>
+        <BookingListPage today="2026-11-11" />
+      </AdminProvider>,
+    );
+    expect(await screen.findByText(/今日/)).toBeInTheDocument();
+    expect(screen.queryByText("二段階認証を設定する")).toBeNull();
+  });
+
+  it("sets up two-factor from the account page, then shows recovery codes once", async () => {
     let enabled = false;
     mockFetch((url) => {
       const c = csrf(url);
@@ -67,15 +85,15 @@ describe("two-factor login", () => {
         enabled = true;
         return { body: { ...base, recovery_codes: ["aaaaa-11111", "bbbbb-22222"] } };
       }
-      if (url.includes("/bookings")) return { body: [] };
       return { body: {} };
     });
     render(
       <AdminProvider>
-        <BookingListPage today="2026-11-11" />
+        <AccountPage />
       </AdminProvider>,
     );
-    expect(await screen.findByText("二段階認証を設定してください")).toBeInTheDocument();
+    expect(await screen.findByText("二段階認証：未設定")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "二段階認証を設定する" }));
     await userEvent.click(screen.getByRole("button", { name: "設定を始める" }));
     expect(await screen.findByAltText("認証アプリで読み取るQRコード")).toHaveAttribute("src", expect.stringContaining("data:image/svg+xml"));
     expect(screen.getByText("ABCDEF")).toBeInTheDocument();
@@ -83,8 +101,9 @@ describe("two-factor login", () => {
     await userEvent.type(screen.getByLabelText("認証アプリに表示された6桁"), "123456");
     await userEvent.click(screen.getByRole("button", { name: "確認して有効にする" }));
     expect(await screen.findByText("aaaaa-11111")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "保存しました。次へ進む" }));
-    expect(await screen.findByText(/今日/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "回復コードを保存しました" }));
+    expect(await screen.findByText("二段階認証を設定しました。")).toBeInTheDocument();
+    expect(screen.getByText("二段階認証：設定済み")).toBeInTheDocument();
   });
 
   it("shows setup errors", async () => {
@@ -96,10 +115,11 @@ describe("two-factor login", () => {
     });
     render(
       <AdminProvider>
-        <BookingListPage today="2026-11-11" />
+        <AccountPage />
       </AdminProvider>,
     );
-    await userEvent.click(await screen.findByRole("button", { name: "設定を始める" }));
+    await userEvent.click(await screen.findByRole("button", { name: "二段階認証を設定する" }));
+    await userEvent.click(screen.getByRole("button", { name: "設定を始める" }));
     expect(await screen.findByText(/通信に失敗しました|設定できませんでした/)).toBeInTheDocument();
   });
 

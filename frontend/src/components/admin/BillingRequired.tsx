@@ -85,7 +85,7 @@ export function BillingRequired({
 
   return (
     <Onboarding
-      step={3}
+      step={2}
       title="お支払いを登録して、利用を始めましょう"
       lead={<p>{membership.name} の月額料金を、クレジットカードで登録します。</p>}
       onSignOut={onSignOut}

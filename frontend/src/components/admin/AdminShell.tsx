@@ -6,8 +6,6 @@ import type { ReactNode } from "react";
 import { useAdmin } from "./AdminContext";
 import { Calendar, CalendarX, List, Sliders } from "../ui/icons";
 import { BillingRequired } from "./BillingRequired";
-import { Onboarding } from "./Onboarding";
-import { TWO_FACTOR_LEAD, TwoFactorSetup } from "./TwoFactorSetup";
 
 // 文字だけでなくアイコンでも見分けられるようにする（UX: navigation recognizability）
 const TABS = [
@@ -37,14 +35,7 @@ export function AdminShell({ title, action, children }: { title: string; action?
         ))}
       </select>
     ) : null;
-  // 利用を始めるまで（二段階認証・お支払い）は、管理画面のタブを出さずに手順だけを見せる
-  if (me.two_factor_required && !me.two_factor_enabled) {
-    return (
-      <Onboarding step={membership?.billing_managed ? 2 : undefined} title="二段階認証を設定してください" lead={<p>{TWO_FACTOR_LEAD}</p>} onSignOut={() => void signOut()}>
-        <TwoFactorSetup onDone={signedIn} bare />
-      </Onboarding>
-    );
-  }
+  // お支払いが済むまでは、管理画面のタブを出さずに手順だけを見せる
   if (membership?.billing_required) return <BillingRequired membership={membership} onPaid={signedIn} onSignOut={() => void signOut()} switcher={switcher} />;
   return (
     <div className="mx-auto flex min-h-dvh max-w-3xl flex-col bg-card">

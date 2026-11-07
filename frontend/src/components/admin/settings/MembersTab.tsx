@@ -78,7 +78,7 @@ export function MembersTab({ sub, staff, onChanged }: { sub: string; staff: Staf
                   onClick={() => {
                     // 端末と回復コードの両方を失ったメンバーのため。本人確認ができたときだけ行う
                     if (window.confirm(`${m.email} の二段階認証をリセットします。本人に確認しましたか？`))
-                      void run(() => adminApi.resetMemberTwoFactor(sub, m.id), `${m.email} の二段階認証をリセットしました。次のログインで設定し直します。`);
+                      void run(() => adminApi.resetMemberTwoFactor(sub, m.id), `${m.email} の二段階認証をリセットしました。次のログインはパスワードだけになります。`);
                   }}
                 >
                   二段階認証をリセット

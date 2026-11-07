@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/settings",
 }));
 
-const owner: Me = { two_factor_enabled: true, two_factor_required: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
+const owner: Me = { two_factor_enabled: true, email: "o@example.com", name: "院長", memberships: [{ subdomain: "fushimi", name: "伏見整体院", role: "owner", staff_id: 10, billing_required: false, billing_managed: false }] };
 const staffMe: Me = { ...owner, memberships: [{ ...owner.memberships[0], role: "staff", staff_id: 11, billing_required: false, billing_managed: false }] };
 
 const affected: AdminBooking = {
@@ -52,7 +52,7 @@ function backend({ affects = [] as string[], fail = "", me = owner } = {}) {
     writes.push({ path, method, dry, body: init?.body ? JSON.parse(String(init.body)) : undefined });
     return { body: { applied: !dry, result: {}, affected_bookings: affects.includes(path) ? [affected] : [] } };
   });
-  return { calls, writes: () => writes.filter((w) => !w.dry) };
+  return { calls, db, writes: () => writes.filter((w) => !w.dry) };
 }
 
 function renderAs(_me: Me = owner) {
@@ -275,6 +275,20 @@ describe("settings", () => {
     ]);
     await userEvent.click(screen.getByRole("button", { name: "担当者の一覧へ" }));
     expect(await screen.findByRole("button", { name: "担当者を追加" })).toBeInTheDocument();
+  });
+
+  it("warns about settings that leave no slots, and checks again after saving", async () => {
+    const be = backend();
+    be.db.warnings = { warnings: ["営業日なのに勤務している担当者がいません（土）。「担当者」の「勤務」で週の勤務を入れてください。"] };
+    renderAs();
+    expect(await screen.findByText("このままでは、お客様に空き枠が表示されません")).toBeInTheDocument();
+    expect(screen.getByText(/勤務している担当者がいません（土）/)).toBeInTheDocument();
+    await openTab("担当者");
+    await userEvent.click((await screen.findAllByRole("button", { name: "勤務" }))[0]);
+    await userEvent.click(await screen.findByRole("checkbox", { name: "土" }));
+    be.db.warnings = { warnings: [] };
+    await userEvent.click(screen.getByRole("button", { name: "勤務を保存する" }));
+    await waitFor(() => expect(screen.queryByText("このままでは、お客様に空き枠が表示されません")).toBeNull());
   });
 
   it("changes and adds resources", async () => {
